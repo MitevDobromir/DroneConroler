@@ -15,3 +15,7 @@ log/
 # IDE
 .vscode/
 .idea/
+
+#ArduPilot
+ArduPilot/ardupilot/
+ArduPilot/ardupilot_gazebo/

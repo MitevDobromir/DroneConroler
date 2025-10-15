@@ -1,0 +1,2 @@
+TODO:
+Cube.sdf has issue [Err] [ArduPilotPlugin.cc:1174] [drone1] imu_sensor [drone1::base_link::imu_sensor] not found, abort ArduPilot plugin. 
