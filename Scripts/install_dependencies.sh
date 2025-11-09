@@ -43,7 +43,10 @@ sudo apt install -y \
     python3-lxml \
     python3-future \
     python3-empy
-check_success "Failed to install Python tools"
+check_success "Failed to install Python apt packages"
+
+pip3 install --user --break-system-packages pymavlink mavproxy
+check_success "Failed to install Python pip packages"
 
 print_status "3/4 Installing basic ArduPilot libraries..."
 sudo apt install -y \
@@ -75,22 +78,9 @@ wget -O /tmp/install_geographiclib_datasets.sh \
 if [ $? -eq 0 ]; then
     sudo bash /tmp/install_geographiclib_datasets.sh
     rm /tmp/install_geographiclib_datasets.sh
-    print_status "✅ GeographicLib datasets installed"
+    print_status "GeographicLib datasets installed"
 else
     print_warning "GeographicLib datasets script failed, continuing without them"
 fi
 
-print_status "✅ Essential dependencies installed!"
-print_status ""
-print_status "What's installed:"
-print_status " • Build tools (gcc, cmake, git, python)"
-print_status " • ArduPilot core dependencies"
-print_status " • ROS2 Jazzy + MAVROS"
-print_status " • Basic Gazebo integration (ros-gz)"
-print_status ""
-print_status "Next steps:"
-print_status " 1. Clone ArduPilot: git clone --recurse-submodules https://github.com/ArduPilot/ardupilot.git"
-print_status " 2. Test SITL: cd ardupilot && ./Tools/autotest/sim_vehicle.py -v ArduCopter"
-print_status " 3. For Gazebo: Follow ArduPilot Gazebo setup separately"
-print_status ""
-print_status "🎯 This avoids the complex Gazebo plugin build for now"
+print_status "Essential dependencies installed!"

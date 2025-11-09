@@ -1,0 +1,1 @@
+gz service -s /world/plains_world/create --reqtype gz.msgs.EntityFactory --reptype gz.msgs.Boolean --timeout 1000 --req 'sdf_filename: "/home/vboxuser/ROS2_Tools/ArduPilot/ardupilot_gazebo/models/iris_with_ardupilot/model.sdf", name: "iris_with_ardupilot", pose: {position: {x: 0, y: 0, z: 0.5}}'
