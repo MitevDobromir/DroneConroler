@@ -13,6 +13,36 @@ class DroneController:
         self.master.wait_heartbeat()
         print("[SUCCESS] Heartbeat received from drone")
         
+    def get_location(self):
+        """Get current GPS location
+        
+        Returns:
+            dict with lat, lon, alt, relative_alt or None if unavailable
+        """
+        msg = self.master.recv_match(type='GLOBAL_POSITION_INT', blocking=True, timeout=1)
+        if msg:
+            return {
+                'lat': msg.lat / 1e7,           # Convert from degE7 to degrees
+                'lon': msg.lon / 1e7,           # Convert from degE7 to degrees
+                'alt': msg.alt / 1000.0,        # Convert from mm to meters (MSL)
+                'relative_alt': msg.relative_alt / 1000.0  # Altitude above ground in meters
+            }
+        return None
+    
+    def get_gps_status(self):
+        """Get GPS fix status
+        
+        Returns:
+            dict with fix_type and satellites, or None if unavailable
+        """
+        msg = self.master.recv_match(type='GPS_RAW_INT', blocking=True, timeout=1)
+        if msg:
+            return {
+                'fix_type': msg.fix_type,
+                'satellites': msg.satellites_visible
+            }
+        return None
+        
     def wait_for_gps(self, timeout=60):
         """Wait for GPS lock"""
         print("[GPS] Waiting for GPS lock...")
@@ -138,6 +168,67 @@ class DroneController:
                 speed, 0, 0,
                 0, 0, 0,
                 0, 0
+            )
+        )
+        
+        move_time = distance / speed
+        print(f"[MOVE] Moving for {move_time:.1f} seconds...")
+        time.sleep(move_time)
+        
+        print("[MOVE] Stopping...")
+        self.master.mav.send(
+            mavutil.mavlink.MAVLink_set_position_target_local_ned_message(
+                10,
+                self.master.target_system,
+                self.master.target_component,
+                mavutil.mavlink.MAV_FRAME_BODY_OFFSET_NED,
+                0b0000111111000111,
+                0, 0, 0,
+                0, 0, 0,
+                0, 0, 0,
+                0, 0
+            )
+        )
+        
+        print("[SUCCESS] Movement complete")
+        return True
+    
+    def move_relative(self, x, y, speed=1.0):
+        """Move relative to current position in body frame
+        
+        Args:
+            x: Forward/backward distance in meters (positive = forward)
+            y: Left/right distance in meters (positive = right)
+            speed: Movement speed in m/s
+            
+        Returns:
+            True on success
+        """
+        import math
+        
+        distance = math.sqrt(x**2 + y**2)
+        if distance < 0.1:
+            print("[MOVE] Distance too small, skipping move")
+            return True
+            
+        print(f"[MOVE] Moving X={x}m, Y={y}m at {speed}m/s...")
+        
+        # Calculate velocity components to maintain speed
+        # NED frame: X=North, Y=East, but in body frame: X=Forward, Y=Right
+        vx = (x / distance) * speed if distance > 0 else 0
+        vy = (y / distance) * speed if distance > 0 else 0
+        
+        self.master.mav.send(
+            mavutil.mavlink.MAVLink_set_position_target_local_ned_message(
+                10,
+                self.master.target_system,
+                self.master.target_component,
+                mavutil.mavlink.MAV_FRAME_BODY_OFFSET_NED,
+                0b0000111111000111,  # Velocity control mask
+                0, 0, 0,             # Position (ignored)
+                vx, vy, 0,           # Velocity
+                0, 0, 0,             # Acceleration (ignored)
+                0, 0                 # Yaw, yaw_rate (ignored)
             )
         )
         
