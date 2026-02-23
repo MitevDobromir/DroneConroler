@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import List, Dict, Tuple
 
 from .global_state import GlobalState
+from .theme import get_terminal_colors, COLORS
 
 # Try to import flight controller
 try:
@@ -22,7 +23,6 @@ except ImportError:
 class ControllerTab(ttk.Frame):
     """Tab for controlling drones via MAVLink"""
     
-    # Step type definitions: name -> [(param_name, label, default, min, max), ...]
     STEP_TYPES: Dict[str, List[Tuple]] = {
         'Takeoff': [('altitude', 'Altitude (m)', '5', 1, 50)],
         'Move': [
@@ -41,16 +41,13 @@ class ControllerTab(ttk.Frame):
         self.gps_update_active = False
         self.is_mission_running = False
         
-        # Mission steps
         self.mission_steps: List[Dict] = []
         
-        # Listen for state changes
         state.add_listener(self.on_state_changed)
         
         self.setup_gui()
         
     def setup_gui(self):
-        """Setup controller tab GUI"""
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=1)
         self.rowconfigure(1, weight=1)
@@ -64,13 +61,14 @@ class ControllerTab(ttk.Frame):
         conn_frame = ttk.LabelFrame(top_frame, text="Connection", padding="5")
         conn_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 5))
         
-        self.connect_button = ttk.Button(conn_frame, text="Connect", 
-                                         command=self.toggle_connection)
+        self.connect_button = ttk.Button(conn_frame, text="Connect",
+                                         command=self.toggle_connection,
+                                         style='Accent.TButton')
         self.connect_button.pack(side=tk.LEFT, padx=5)
         
         self.conn_status_var = tk.StringVar(value="Disconnected")
         self.conn_status_label = ttk.Label(conn_frame, textvariable=self.conn_status_var,
-                                           font=('Arial', 10, 'bold'), foreground='red')
+                                           style='StatusRed.TLabel')
         self.conn_status_label.pack(side=tk.LEFT, padx=10)
         
         # GPS frame
@@ -82,14 +80,14 @@ class ControllerTab(ttk.Frame):
         self.alt_var = tk.StringVar(value="---")
         
         ttk.Label(gps_frame, text="Lat:").pack(side=tk.LEFT)
-        ttk.Label(gps_frame, textvariable=self.lat_var, width=12, 
-                 font=('Courier', 9)).pack(side=tk.LEFT)
+        ttk.Label(gps_frame, textvariable=self.lat_var, width=12,
+                 font=('Consolas', 9)).pack(side=tk.LEFT)
         ttk.Label(gps_frame, text="Lon:").pack(side=tk.LEFT, padx=(10, 0))
-        ttk.Label(gps_frame, textvariable=self.lon_var, width=12, 
-                 font=('Courier', 9)).pack(side=tk.LEFT)
+        ttk.Label(gps_frame, textvariable=self.lon_var, width=12,
+                 font=('Consolas', 9)).pack(side=tk.LEFT)
         ttk.Label(gps_frame, text="Alt:").pack(side=tk.LEFT, padx=(10, 0))
-        ttk.Label(gps_frame, textvariable=self.alt_var, width=8, 
-                 font=('Courier', 9)).pack(side=tk.LEFT)
+        ttk.Label(gps_frame, textvariable=self.alt_var, width=8,
+                 font=('Consolas', 9)).pack(side=tk.LEFT)
         
         # Left panel - Mission builder
         left_frame = ttk.LabelFrame(self, text="Mission Builder", padding="10")
@@ -97,16 +95,14 @@ class ControllerTab(ttk.Frame):
         left_frame.columnconfigure(0, weight=1)
         left_frame.rowconfigure(4, weight=1)
         
-        # Step type selection
         ttk.Label(left_frame, text="Step Type:").grid(row=0, column=0, sticky="w")
         self.step_type_var = tk.StringVar(value="Takeoff")
         self.step_combo = ttk.Combobox(left_frame, textvariable=self.step_type_var,
-                                       state='readonly', 
+                                       state='readonly',
                                        values=list(self.STEP_TYPES.keys()))
         self.step_combo.grid(row=1, column=0, sticky="ew", pady=(0, 10))
         self.step_combo.bind('<<ComboboxSelected>>', self.on_step_type_changed)
         
-        # Parameters frame (dynamic)
         self.params_frame = ttk.Frame(left_frame)
         self.params_frame.grid(row=2, column=0, sticky="ew")
         self.param_widgets: Dict = {}
@@ -118,7 +114,6 @@ class ControllerTab(ttk.Frame):
         
         ttk.Separator(left_frame, orient=tk.HORIZONTAL).grid(row=4, column=0, sticky="ew", pady=10)
         
-        # Mission steps list
         ttk.Label(left_frame, text="Mission Steps:").grid(row=5, column=0, sticky="w")
         
         list_frame = ttk.Frame(left_frame)
@@ -126,7 +121,7 @@ class ControllerTab(ttk.Frame):
         list_frame.columnconfigure(0, weight=1)
         list_frame.rowconfigure(0, weight=1)
         
-        self.mission_listbox = tk.Listbox(list_frame, height=8, font=('Courier', 9))
+        self.mission_listbox = tk.Listbox(list_frame, height=8, font=('Consolas', 9))
         self.mission_listbox.grid(row=0, column=0, sticky="nsew")
         
         scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL,
@@ -134,12 +129,11 @@ class ControllerTab(ttk.Frame):
         scrollbar.grid(row=0, column=1, sticky="ns")
         self.mission_listbox.config(yscrollcommand=scrollbar.set)
         
-        # Mission list buttons
         btn_frame = ttk.Frame(left_frame)
         btn_frame.grid(row=7, column=0, sticky="ew", pady=(5, 0))
-        ttk.Button(btn_frame, text="Remove", 
+        ttk.Button(btn_frame, text="Remove",
                   command=self.remove_step).pack(side=tk.LEFT, expand=True, fill=tk.X)
-        ttk.Button(btn_frame, text="Clear", 
+        ttk.Button(btn_frame, text="Clear",
                   command=self.clear_steps).pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(5, 0))
         
         # Right panel - Execution
@@ -148,35 +142,33 @@ class ControllerTab(ttk.Frame):
         right_frame.columnconfigure(0, weight=1)
         right_frame.rowconfigure(1, weight=1)
         
-        # Run button
-        self.run_button = ttk.Button(right_frame, text="▶ Run Mission",
-                                     command=self.run_mission, state='disabled')
+        self.run_button = ttk.Button(right_frame, text="▶  Run Mission",
+                                     command=self.run_mission, state='disabled',
+                                     style='Success.TButton')
         self.run_button.grid(row=0, column=0, sticky="ew", pady=(0, 10))
         
-        # Status output
-        self.status_text = scrolledtext.ScrolledText(right_frame, height=15,
-                                                     font=('Courier', 9),
-                                                     state='disabled',
-                                                     bg='#1e1e1e', fg='#00ff00')
+        tc = get_terminal_colors()
+        self.status_text = scrolledtext.ScrolledText(
+            right_frame, height=15,
+            font=('Consolas', 9), state='disabled',
+            bg=tc['bg'], fg=tc['fg'],
+            selectbackground=tc['select_bg'],
+            selectforeground=tc['select_fg'],
+            insertbackground=tc['fg'],
+            relief='flat', borderwidth=0)
         self.status_text.grid(row=1, column=0, sticky="nsew")
         
-        # Clear log button
         ttk.Button(right_frame, text="Clear Log",
                   command=self.clear_log).grid(row=2, column=0, sticky="e", pady=(5, 0))
         
     def on_state_changed(self, event: str):
-        """Handle global state changes"""
         if event == 'drone_spawned':
             self.after(0, self.update_drone_list)
             
     def update_drone_list(self):
-        """Update available drones (for future use)"""
-        # Could add drone selection dropdown here
         pass
         
     def on_step_type_changed(self, event=None):
-        """Update parameter inputs based on selected step type"""
-        # Clear existing widgets
         for widget in self.params_frame.winfo_children():
             widget.destroy()
         self.param_widgets.clear()
@@ -196,7 +188,6 @@ class ControllerTab(ttk.Frame):
             }
             
     def add_step(self):
-        """Add step to mission"""
         step_type = self.step_type_var.get()
         step = {'type': step_type.lower()}
         
@@ -214,7 +205,6 @@ class ControllerTab(ttk.Frame):
             
         self.mission_steps.append(step)
         
-        # Update display
         display = f"{len(self.mission_steps)}: {step_type}"
         if params:
             param_str = ", ".join([f"{p[0]}={step[p[0]]}" for p in params])
@@ -222,19 +212,16 @@ class ControllerTab(ttk.Frame):
         self.mission_listbox.insert(tk.END, display)
         
     def remove_step(self):
-        """Remove selected step from mission"""
         selection = self.mission_listbox.curselection()
         if selection:
             self.mission_steps.pop(selection[0])
             self.refresh_mission_list()
             
     def clear_steps(self):
-        """Clear all mission steps"""
         self.mission_steps.clear()
         self.mission_listbox.delete(0, tk.END)
         
     def refresh_mission_list(self):
-        """Refresh mission list display"""
         self.mission_listbox.delete(0, tk.END)
         for i, step in enumerate(self.mission_steps, 1):
             step_type = step['type'].capitalize()
@@ -246,16 +233,14 @@ class ControllerTab(ttk.Frame):
             self.mission_listbox.insert(tk.END, display)
             
     def toggle_connection(self):
-        """Toggle drone connection"""
         if self.is_connected:
             self.disconnect()
         else:
             self.connect()
             
     def connect(self):
-        """Connect to drone via MAVLink"""
         if not FLIGHT_CONTROLLER_AVAILABLE:
-            messagebox.showerror("Error", 
+            messagebox.showerror("Error",
                 "Flight controller module not available.\n"
                 "Make sure flight_controller.py exists in:\n"
                 "~/ROS2_Tools/Software/Common/")
@@ -267,11 +252,10 @@ class ControllerTab(ttk.Frame):
             self.is_connected = True
             self.connect_button.config(text="Disconnect")
             self.conn_status_var.set("Connected")
-            self.conn_status_label.config(foreground='green')
+            self.conn_status_label.config(style='StatusGreen.TLabel')
             self.run_button.config(state='normal')
             self.log("[SUCCESS] Connected!")
             
-            # Start GPS updates
             self.gps_update_active = True
             self.update_gps()
             
@@ -280,13 +264,12 @@ class ControllerTab(ttk.Frame):
             messagebox.showerror("Connection Error", str(e))
             
     def disconnect(self):
-        """Disconnect from drone"""
         self.gps_update_active = False
         self.drone_controller = None
         self.is_connected = False
         self.connect_button.config(text="Connect")
         self.conn_status_var.set("Disconnected")
-        self.conn_status_label.config(foreground='red')
+        self.conn_status_label.config(style='StatusRed.TLabel')
         self.run_button.config(state='disabled')
         self.lat_var.set("---")
         self.lon_var.set("---")
@@ -294,7 +277,6 @@ class ControllerTab(ttk.Frame):
         self.log("[INFO] Disconnected")
         
     def update_gps(self):
-        """Update GPS display periodically"""
         if not self.gps_update_active or not self.drone_controller:
             return
             
@@ -313,21 +295,17 @@ class ControllerTab(ttk.Frame):
         thread.start()
         
     def _update_gps_display(self, loc: Dict):
-        """Update GPS labels on main thread"""
         self.lat_var.set(f"{loc['lat']:.6f}")
         self.lon_var.set(f"{loc['lon']:.6f}")
         self.alt_var.set(f"{loc['relative_alt']:.1f}m")
         
     def run_mission(self):
-        """Run the mission"""
         if not self.mission_steps:
             messagebox.showwarning("No Mission", "Add steps to mission first")
             return
-            
         if not self.is_connected:
             messagebox.showerror("Not Connected", "Connect to drone first")
             return
-            
         if self.is_mission_running:
             messagebox.showwarning("Running", "Mission already running")
             return
@@ -337,7 +315,6 @@ class ControllerTab(ttk.Frame):
         thread.start()
         
     def _execute_mission(self):
-        """Execute mission steps in background thread"""
         self.is_mission_running = True
         self.after(0, lambda: self.run_button.config(state='disabled'))
         
@@ -346,7 +323,6 @@ class ControllerTab(ttk.Frame):
             self.log("[MISSION] Starting...")
             self.log("=" * 40)
             
-            # Setup sequence
             self.log("\n[SETUP] Waiting for GPS lock...")
             if not self.drone_controller.wait_for_gps():
                 self.log("[ERROR] GPS timeout - aborting mission")
@@ -364,7 +340,6 @@ class ControllerTab(ttk.Frame):
                 
             self.log("[SETUP] Ready for mission!\n")
             
-            # Execute each step
             for i, step in enumerate(self.mission_steps, 1):
                 step_type = step['type']
                 self.log(f"[STEP {i}/{len(self.mission_steps)}] {step_type.upper()}")
@@ -388,7 +363,7 @@ class ControllerTab(ttk.Frame):
                     self.log("  Landing...")
                     self.drone_controller.land()
                     
-                self.log(f"  ✓ Step {i} complete\n")
+                self.log(f"  Done\n")
                 
             self.log("=" * 40)
             self.log("[MISSION] Complete!")
@@ -405,7 +380,6 @@ class ControllerTab(ttk.Frame):
                 state='normal' if self.is_connected else 'disabled'))
             
     def log(self, message: str):
-        """Log message to status area (thread-safe)"""
         def _log():
             self.status_text.config(state='normal')
             self.status_text.insert(tk.END, message + '\n')
@@ -414,7 +388,6 @@ class ControllerTab(ttk.Frame):
         self.after(0, _log)
         
     def clear_log(self):
-        """Clear the log output"""
         self.status_text.config(state='normal')
         self.status_text.delete(1.0, tk.END)
         self.status_text.config(state='disabled')

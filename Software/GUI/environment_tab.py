@@ -18,6 +18,7 @@ except ImportError:
     PIL_AVAILABLE = False
 
 from .global_state import GlobalState
+from .theme import get_terminal_colors, COLORS
 
 
 class EnvironmentTab(ttk.Frame):
@@ -58,7 +59,7 @@ class EnvironmentTab(ttk.Frame):
         list_frame.columnconfigure(0, weight=1)
         list_frame.rowconfigure(0, weight=1)
         
-        self.world_listbox = tk.Listbox(list_frame, font=('Courier', 11),
+        self.world_listbox = tk.Listbox(list_frame, font=('Consolas', 11),
                                         selectmode=tk.SINGLE, exportselection=False)
         self.world_listbox.grid(row=0, column=0, sticky="nsew")
         self.world_listbox.bind('<<ListboxSelect>>', self.on_world_selected)
@@ -84,12 +85,13 @@ class EnvironmentTab(ttk.Frame):
         preview_frame.rowconfigure(0, weight=1)
         
         self.preview_label = ttk.Label(preview_frame, text="Select a world",
-                                       anchor=tk.CENTER, font=('Arial', 10, 'italic'))
+                                       anchor=tk.CENTER,
+                                       foreground=COLORS['fg_muted'])
         self.preview_label.grid(row=0, column=0, sticky="nsew")
         
         self.world_info_var = tk.StringVar(value="No world selected")
         ttk.Label(preview_frame, textvariable=self.world_info_var,
-                 font=('Arial', 9), wraplength=350).grid(row=1, column=0, pady=(10, 0), sticky="ew")
+                 wraplength=350).grid(row=1, column=0, pady=(10, 0), sticky="ew")
         
         # Control buttons
         control_frame = ttk.LabelFrame(right_frame, text="Controls", padding="10")
@@ -97,12 +99,14 @@ class EnvironmentTab(ttk.Frame):
         control_frame.columnconfigure(0, weight=1)
         control_frame.columnconfigure(1, weight=1)
         
-        self.launch_button = ttk.Button(control_frame, text="Launch Environment",
-                                        command=self.launch_environment)
+        self.launch_button = ttk.Button(control_frame, text="▶  Launch Environment",
+                                        command=self.launch_environment,
+                                        style='Accent.TButton')
         self.launch_button.grid(row=0, column=0, padx=(0, 5), pady=5, sticky="ew")
         
-        self.stop_button = ttk.Button(control_frame, text="⏹ Stop Gazebo",
-                                      command=self.stop_gazebo, state='disabled')
+        self.stop_button = ttk.Button(control_frame, text="⏹  Stop Gazebo",
+                                      command=self.stop_gazebo, state='disabled',
+                                      style='Danger.TButton')
         self.stop_button.grid(row=0, column=1, padx=(5, 0), pady=5, sticky="ew")
         
         # Terminal output
@@ -110,14 +114,18 @@ class EnvironmentTab(ttk.Frame):
         terminal_frame.grid(row=2, column=0, sticky="ew", pady=(10, 0))
         terminal_frame.columnconfigure(0, weight=1)
         
-        self.terminal_text = scrolledtext.ScrolledText(terminal_frame, height=6,
-                                                       font=('Courier', 9),
-                                                       state='disabled',
-                                                       bg='#1e1e1e', fg='#00ff00')
+        tc = get_terminal_colors()
+        self.terminal_text = scrolledtext.ScrolledText(
+            terminal_frame, height=6,
+            font=('Consolas', 9), state='disabled',
+            bg=tc['bg'], fg=tc['fg'],
+            selectbackground=tc['select_bg'],
+            selectforeground=tc['select_fg'],
+            insertbackground=tc['fg'],
+            relief='flat', borderwidth=0)
         self.terminal_text.grid(row=0, column=0, sticky="ew")
         
     def scan_worlds(self):
-        """Scan for available world files"""
         self.worlds.clear()
         self.world_listbox.delete(0, tk.END)
         
@@ -126,7 +134,6 @@ class EnvironmentTab(ttk.Frame):
             return
             
         for sdf_file in sorted(self.worlds_path.glob("*.sdf")):
-            # Parse world name from file
             world_name = self.parse_world_name(sdf_file)
             self.worlds.append({
                 'name': sdf_file.stem,
@@ -139,7 +146,6 @@ class EnvironmentTab(ttk.Frame):
         self.log(f"[INFO] Found {len(self.worlds)} world(s)")
         
     def parse_world_name(self, sdf_path: Path) -> Optional[str]:
-        """Parse the world name from inside the SDF file"""
         try:
             tree = ET.parse(sdf_path)
             root = tree.getroot()
@@ -151,17 +157,14 @@ class EnvironmentTab(ttk.Frame):
         return None
         
     def on_world_selected(self, event=None):
-        """Handle world selection"""
         selection = self.world_listbox.curselection()
         if not selection:
             return
-            
         world = self.worlds[selection[0]]
         self.world_info_var.set(f"File: {world['file']}\nWorld name: {world['world_name'] or 'Unknown'}")
         self.load_preview(world['name'])
         
     def load_preview(self, world_name: str):
-        """Load preview image for world"""
         if not PIL_AVAILABLE:
             self.preview_label.config(image='', text="Install Pillow for previews")
             return
@@ -183,7 +186,6 @@ class EnvironmentTab(ttk.Frame):
         self.preview_label.config(image='', text=f"No preview\n\nAdd: {self.previews_path}/{world_name}.jpg")
         
     def launch_environment(self):
-        """Launch selected world"""
         selection = self.world_listbox.curselection()
         if not selection:
             messagebox.showwarning("No Selection", "Please select a world")
@@ -200,7 +202,6 @@ class EnvironmentTab(ttk.Frame):
         self.log(f"[WORLD] {world['world_name']}")
         self.log(f"{'='*40}")
         
-        # Update global state
         self.state.set_world(world['world_name'], world['file'])
         self.state.clear_drones()
         
@@ -209,7 +210,6 @@ class EnvironmentTab(ttk.Frame):
         thread.start()
         
     def _run_launch(self, world: Dict):
-        """Run launch script in background"""
         try:
             self.state.set_gazebo_running(True)
             self.after(0, self._update_ui_running)
@@ -238,17 +238,14 @@ class EnvironmentTab(ttk.Frame):
             self.after(0, self._update_ui_stopped)
             
     def _update_ui_running(self):
-        """Update UI to running state"""
         self.launch_button.config(state='disabled')
         self.stop_button.config(state='normal')
         
     def _update_ui_stopped(self):
-        """Update UI to stopped state"""
         self.launch_button.config(state='normal')
         self.stop_button.config(state='disabled')
         
     def stop_gazebo(self):
-        """Stop Gazebo"""
         if self.state.gazebo_process:
             self.log("[STOP] Terminating Gazebo...")
             try:
@@ -259,7 +256,6 @@ class EnvironmentTab(ttk.Frame):
         subprocess.run(['pkill', '-f', 'gz sim'], capture_output=True)
         
     def log(self, message: str):
-        """Log to terminal"""
         self.terminal_text.config(state='normal')
         self.terminal_text.insert(tk.END, message + '\n')
         self.terminal_text.see(tk.END)

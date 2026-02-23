@@ -9,9 +9,11 @@ import subprocess
 import os
 
 from .global_state import STATE
+from .theme import apply_theme, COLORS
 from .environment_tab import EnvironmentTab
 from .spawner_tab import SpawnerTab
 from .controller_tab import ControllerTab
+from .driver_tab import DriverTab
 
 
 class DroneControlCenter:
@@ -25,6 +27,9 @@ class DroneControlCenter:
         
         # Use global state
         self.state = STATE
+        
+        # Apply dark theme before building widgets
+        apply_theme(self.root)
         
         self.setup_gui()
         
@@ -46,7 +51,7 @@ class DroneControlCenter:
         
         # Title
         ttk.Label(header_frame, text="Drone Control Center",
-                 font=('Arial', 16, 'bold')).grid(row=0, column=0, sticky="w")
+                 style='Title.TLabel').grid(row=0, column=0, sticky="w")
         
         # Global status indicators
         status_frame = ttk.Frame(header_frame)
@@ -56,14 +61,21 @@ class DroneControlCenter:
         ttk.Label(status_frame, text="Environment:").pack(side=tk.LEFT)
         self.global_world_var = tk.StringVar(value="None")
         self.global_world_label = ttk.Label(status_frame, textvariable=self.global_world_var,
-                                            font=('Arial', 10, 'bold'), foreground='gray')
+                                            style='StatusGray.TLabel')
         self.global_world_label.pack(side=tk.LEFT, padx=(5, 15))
+        
+        # Driver status
+        ttk.Label(status_frame, text="Driver:").pack(side=tk.LEFT)
+        self.global_driver_var = tk.StringVar(value="Stopped")
+        self.global_driver_label = ttk.Label(status_frame, textvariable=self.global_driver_var,
+                                             style='StatusGray.TLabel')
+        self.global_driver_label.pack(side=tk.LEFT, padx=(5, 15))
         
         # Drones count
         ttk.Label(status_frame, text="Drones:").pack(side=tk.LEFT)
         self.global_drones_var = tk.StringVar(value="0")
         ttk.Label(status_frame, textvariable=self.global_drones_var,
-                 font=('Arial', 10, 'bold')).pack(side=tk.LEFT, padx=(5, 0))
+                 style='Status.TLabel').pack(side=tk.LEFT, padx=(5, 0))
         
         # Notebook (tabbed interface)
         self.notebook = ttk.Notebook(main_frame)
@@ -72,12 +84,14 @@ class DroneControlCenter:
         # Create tabs
         self.env_tab = EnvironmentTab(self.notebook, self.state)
         self.spawner_tab = SpawnerTab(self.notebook, self.state)
+        self.driver_tab = DriverTab(self.notebook, self.state)
         self.controller_tab = ControllerTab(self.notebook, self.state)
         
         # Add tabs to notebook
-        self.notebook.add(self.env_tab, text="Environment")
-        self.notebook.add(self.spawner_tab, text="Spawn Drones")
-        self.notebook.add(self.controller_tab, text="Controller")
+        self.notebook.add(self.env_tab, text="  Environment  ")
+        self.notebook.add(self.spawner_tab, text="  Spawn Drones  ")
+        self.notebook.add(self.driver_tab, text="  Drivers  ")
+        self.notebook.add(self.controller_tab, text="  Controller  ")
         
         # Listen for state changes to update header
         self.state.add_listener(self.on_state_changed)
@@ -90,31 +104,47 @@ class DroneControlCenter:
         if event in ['drone_spawned', 'drones_cleared', 'drone_removed']:
             self._update_drone_count()
             
+        if event == 'driver_state_changed':
+            self._update_driver_status()
+            
     def _update_world_status(self):
-        """Update world status in header"""
         if self.state.current_world and self.state.is_gazebo_running:
             self.global_world_var.set(self.state.current_world)
-            self.global_world_label.config(foreground='green')
+            self.global_world_label.config(style='StatusGreen.TLabel')
         else:
             self.global_world_var.set("None")
-            self.global_world_label.config(foreground='gray')
+            self.global_world_label.config(style='StatusGray.TLabel')
             
     def _update_drone_count(self):
-        """Update drone count in header"""
         self.global_drones_var.set(str(len(self.state.spawned_drones)))
+        
+    def _update_driver_status(self):
+        if self.driver_tab.is_driver_running:
+            self.global_driver_var.set("Running")
+            self.global_driver_label.config(style='StatusGreen.TLabel')
+        else:
+            self.global_driver_var.set("Stopped")
+            self.global_driver_label.config(style='StatusGray.TLabel')
             
     def on_closing(self):
-        """Handle window close event"""
+        running = []
         if self.state.is_gazebo_running:
-            if messagebox.askyesno("Confirm Exit", 
-                                  "Gazebo is still running.\nStop it and exit?"):
-                self._stop_gazebo()
+            running.append("Gazebo")
+        if self.driver_tab.is_driver_running:
+            running.append("Driver")
+            
+        if running:
+            names = " and ".join(running)
+            if messagebox.askyesno("Confirm Exit",
+                                   f"{names} still running.\nStop and exit?"):
+                self._stop_all()
                 self.root.after(500, self.root.destroy)
             return
         self.root.destroy()
         
-    def _stop_gazebo(self):
-        """Stop Gazebo process"""
+    def _stop_all(self):
+        if self.driver_tab.is_driver_running:
+            self.driver_tab.stop_driver()
         if self.state.gazebo_process:
             try:
                 import signal

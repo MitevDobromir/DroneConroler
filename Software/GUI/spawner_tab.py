@@ -16,6 +16,7 @@ except ImportError:
     PIL_AVAILABLE = False
 
 from .global_state import GlobalState
+from .theme import COLORS
 
 
 class SpawnerTab(ttk.Frame):
@@ -29,12 +30,12 @@ class SpawnerTab(ttk.Frame):
         self.model_directories = [
             {
                 'path': state.ros2_tools_path / "Models",
-                'type': 'flat',  # <model>.sdf
+                'type': 'flat',
                 'name': 'Custom'
             },
             {
                 'path': state.ros2_tools_path / "ArduPilot" / "ardupilot_gazebo" / "models",
-                'type': 'folder',  # <model>/model.sdf
+                'type': 'folder',
                 'name': 'ArduPilot'
             }
         ]
@@ -49,14 +50,12 @@ class SpawnerTab(ttk.Frame):
         self.current_preview = None
         self.spawn_counter = 1
         
-        # Listen for state changes
         state.add_listener(self.on_state_changed)
         
         self.setup_gui()
         self.scan_models()
         
     def setup_gui(self):
-        """Setup spawner tab GUI"""
         self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=1)
         self.rowconfigure(1, weight=1)
@@ -65,10 +64,10 @@ class SpawnerTab(ttk.Frame):
         status_frame = ttk.Frame(self)
         status_frame.grid(row=0, column=0, columnspan=2, sticky="ew", pady=(0, 10))
         
-        ttk.Label(status_frame, text="Current World:", font=('Arial', 10)).pack(side=tk.LEFT)
+        ttk.Label(status_frame, text="Current World:").pack(side=tk.LEFT)
         self.world_status_var = tk.StringVar(value="No environment running")
         self.world_status_label = ttk.Label(status_frame, textvariable=self.world_status_var,
-                                            font=('Arial', 10, 'bold'), foreground='red')
+                                            style='StatusRed.TLabel')
         self.world_status_label.pack(side=tk.LEFT, padx=(5, 0))
         
         # Left panel - Model selection
@@ -82,7 +81,7 @@ class SpawnerTab(ttk.Frame):
         list_frame.columnconfigure(0, weight=1)
         list_frame.rowconfigure(0, weight=1)
         
-        self.model_listbox = tk.Listbox(list_frame, font=('Courier', 10),
+        self.model_listbox = tk.Listbox(list_frame, font=('Consolas', 10),
                                         selectmode=tk.SINGLE, exportselection=False)
         self.model_listbox.grid(row=0, column=0, sticky="nsew")
         self.model_listbox.bind('<<ListboxSelect>>', self.on_model_selected)
@@ -92,7 +91,7 @@ class SpawnerTab(ttk.Frame):
         scrollbar.grid(row=0, column=1, sticky="ns")
         self.model_listbox.config(yscrollcommand=scrollbar.set)
         
-        ttk.Button(left_frame, text="🔄 Refresh",
+        ttk.Button(left_frame, text="Refresh",
                   command=self.scan_models).grid(row=1, column=0, pady=(10, 0), sticky="ew")
         
         # Right panel
@@ -108,24 +107,23 @@ class SpawnerTab(ttk.Frame):
         preview_frame.rowconfigure(0, weight=1)
         
         self.preview_label = ttk.Label(preview_frame, text="Select a model",
-                                       anchor=tk.CENTER, font=('Arial', 10, 'italic'))
+                                       anchor=tk.CENTER,
+                                       foreground=COLORS['fg_muted'])
         self.preview_label.grid(row=0, column=0, sticky="nsew")
         
         self.model_info_var = tk.StringVar(value="")
         ttk.Label(preview_frame, textvariable=self.model_info_var,
-                 font=('Arial', 9), wraplength=300).grid(row=1, column=0, pady=(10, 0))
+                 wraplength=300).grid(row=1, column=0, pady=(10, 0))
         
         # Spawn parameters
         params_frame = ttk.LabelFrame(right_frame, text="Spawn Parameters", padding="10")
         params_frame.grid(row=1, column=0, sticky="ew", pady=(10, 0))
         params_frame.columnconfigure(1, weight=1)
         
-        # Drone name
         ttk.Label(params_frame, text="Name:").grid(row=0, column=0, sticky="w", pady=5)
         self.name_var = tk.StringVar(value="drone_1")
         ttk.Entry(params_frame, textvariable=self.name_var).grid(row=0, column=1, sticky="ew", pady=5, padx=(10, 0))
         
-        # Coordinates
         coord_frame = ttk.Frame(params_frame)
         coord_frame.grid(row=1, column=0, columnspan=2, sticky="ew", pady=5)
         
@@ -155,7 +153,8 @@ class SpawnerTab(ttk.Frame):
         
         # Spawn button
         self.spawn_button = ttk.Button(params_frame, text="Spawn Drone",
-                                       command=self.spawn_drone, state='disabled')
+                                       command=self.spawn_drone, state='disabled',
+                                       style='Success.TButton')
         self.spawn_button.grid(row=3, column=0, columnspan=2, pady=(15, 5), sticky="ew")
         
         # Spawned drones list
@@ -163,11 +162,10 @@ class SpawnerTab(ttk.Frame):
         spawned_frame.grid(row=2, column=0, sticky="ew", pady=(10, 0))
         spawned_frame.columnconfigure(0, weight=1)
         
-        self.spawned_listbox = tk.Listbox(spawned_frame, height=4, font=('Courier', 9))
+        self.spawned_listbox = tk.Listbox(spawned_frame, height=4, font=('Consolas', 9))
         self.spawned_listbox.grid(row=0, column=0, sticky="ew")
         
     def on_state_changed(self, event: str):
-        """Handle global state changes"""
         if event in ['world_changed', 'gazebo_state_changed']:
             self.after(0, self.update_world_status)
         elif event == 'drones_cleared':
@@ -175,18 +173,16 @@ class SpawnerTab(ttk.Frame):
             self.spawn_counter = 1
             
     def update_world_status(self):
-        """Update world status display"""
         if self.state.current_world and self.state.is_gazebo_running:
             self.world_status_var.set(self.state.current_world)
-            self.world_status_label.config(foreground='green')
+            self.world_status_label.config(style='StatusGreen.TLabel')
             self.spawn_button.config(state='normal')
         else:
             self.world_status_var.set("No environment running")
-            self.world_status_label.config(foreground='red')
+            self.world_status_label.config(style='StatusRed.TLabel')
             self.spawn_button.config(state='disabled')
             
     def scan_models(self):
-        """Scan for available models"""
         self.models.clear()
         self.model_listbox.delete(0, tk.END)
         
@@ -196,7 +192,6 @@ class SpawnerTab(ttk.Frame):
                 continue
                 
             if model_dir['type'] == 'flat':
-                # Look for <model>.sdf files directly
                 for sdf_file in path.glob("*.sdf"):
                     self.models.append({
                         'name': sdf_file.stem,
@@ -204,7 +199,6 @@ class SpawnerTab(ttk.Frame):
                         'source': model_dir['name']
                     })
             else:
-                # Look for <model>/model.sdf folders
                 for model_folder in path.iterdir():
                     if model_folder.is_dir():
                         model_sdf = model_folder / "model.sdf"
@@ -215,25 +209,21 @@ class SpawnerTab(ttk.Frame):
                                 'source': model_dir['name']
                             })
                             
-        # Sort models by name
         self.models.sort(key=lambda x: x['name'].lower())
         
         for model in self.models:
             self.model_listbox.insert(tk.END, f"{model['name']} [{model['source'][0]}]")
             
     def on_model_selected(self, event=None):
-        """Handle model selection"""
         selection = self.model_listbox.curselection()
         if not selection:
             return
-            
         model = self.models[selection[0]]
         self.model_info_var.set(f"{model['name']}\nSource: {model['source']}")
         self.name_var.set(f"{model['name']}_{self.spawn_counter}")
         self.load_preview(model['name'])
         
     def load_preview(self, model_name: str):
-        """Load preview image"""
         if not PIL_AVAILABLE:
             self.preview_label.config(image='', text="Install Pillow for previews")
             return
@@ -255,14 +245,12 @@ class SpawnerTab(ttk.Frame):
                         
         self.preview_label.config(image='', text="No preview available")
         
-    def set_position(self, x: float, y: float, z: float):
-        """Set spawn position"""
+    def set_position(self, x, y, z):
         self.x_var.set(str(x))
         self.y_var.set(str(y))
         self.z_var.set(str(z))
         
-    def offset_position(self, dx: float, dy: float, dz: float):
-        """Offset current spawn position"""
+    def offset_position(self, dx, dy, dz):
         try:
             x = float(self.x_var.get()) + dx
             y = float(self.y_var.get()) + dy
@@ -272,7 +260,6 @@ class SpawnerTab(ttk.Frame):
             self.set_position(dx, dy, dz)
         
     def spawn_drone(self):
-        """Spawn selected drone"""
         if not self.state.current_world:
             messagebox.showerror("No World", "Launch an environment first")
             return
@@ -297,7 +284,6 @@ class SpawnerTab(ttk.Frame):
             messagebox.showerror("Invalid Coords", "Coordinates must be numbers")
             return
             
-        # Build gz service command
         cmd = [
             'gz', 'service',
             '-s', f'/world/{self.state.current_world}/create',
@@ -312,8 +298,7 @@ class SpawnerTab(ttk.Frame):
         thread.daemon = True
         thread.start()
         
-    def _execute_spawn(self, cmd, drone_name: str, model_name: str, x: float, y: float, z: float):
-        """Execute spawn command"""
+    def _execute_spawn(self, cmd, drone_name, model_name, x, y, z):
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
             
@@ -334,12 +319,10 @@ class SpawnerTab(ttk.Frame):
         except Exception as e:
             self.after(0, lambda: messagebox.showerror("Error", str(e)))
             
-    def _on_spawn_success(self, drone_name: str):
-        """Handle successful spawn"""
+    def _on_spawn_success(self, drone_name):
         self.spawned_listbox.insert(tk.END, drone_name)
         self.spawn_counter += 1
         
-        # Update name field for next spawn
         selection = self.model_listbox.curselection()
         if selection:
             model = self.models[selection[0]]
