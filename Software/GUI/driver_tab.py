@@ -314,11 +314,19 @@ class DriverTab(ttk.Frame):
             env = os.environ.copy()
             env.update(extra_env)
 
+            # Clean snap paths from LD_LIBRARY_PATH to prevent gnome-terminal crash
+            # (Ubuntu 24.04 + VirtualBox snap libpthread conflict)
+            snap_clean = (
+                'export LD_LIBRARY_PATH='
+                '$(echo "$LD_LIBRARY_PATH" | tr \':\' \'\\n\' | '
+                'grep -v \'/snap/\' | tr \'\\n\' \':\' | sed \'s/:$//\') && '
+            )
+
             setup_script = self.state.ros2_tools_path / "ArduPilot" / "setup_ardupilot_env.sh"
             if setup_script.exists():
-                wrapped = f'source /opt/ros/jazzy/setup.bash && source {setup_script} && cd {work_dir} && {cmd}'
+                wrapped = f'{snap_clean}source /opt/ros/jazzy/setup.bash && source {setup_script} && cd {work_dir} && {cmd}'
             else:
-                wrapped = f'source /opt/ros/jazzy/setup.bash && cd {work_dir} && {cmd}'
+                wrapped = f'{snap_clean}source /opt/ros/jazzy/setup.bash && cd {work_dir} && {cmd}'
 
             self.driver_process = subprocess.Popen(
                 ['bash', '-c', wrapped],

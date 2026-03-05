@@ -1,0 +1,30 @@
+{
+    "name": "Field Inspection",
+    "description": "Automated field inspection pattern.\nTakes off to 15m, flies a rectangular survey path\n(100m x 100m) over the plains, then lands.\n\nTotal flight distance: ~200m",
+
+    "environment": {
+        "world_file": "plains_env.sdf",
+        "world_name": "plains_world"
+    },
+
+    "drone": {
+        "model_path": "$ARDUPILOT_GAZEBO/models/iris_with_ardupilot/model.sdf",
+        "spawn_name": "iris_inspector",
+        "spawn_position": [0, 0, 0.5]
+    },
+
+    "driver": {
+        "binary": "$ARDUPILOT_HOME/build/sitl/bin/arducopter",
+        "defaults": "default_params/copter.parm,default_params/gazebo-iris.parm",
+        "working_dir": "$ARDUPILOT_HOME/Tools/autotest"
+    },
+
+    "flight_plan": [
+        {"type": "takeoff", "altitude": 15},
+        {"type": "move", "x": -50, "y": 0, "speed": 3.0},
+        {"type": "move", "x": 0, "y": -50, "speed": 3.0},
+        {"type": "move", "x": 50, "y": 0, "speed": 3.0},
+        {"type": "move", "x": 0, "y": 50, "speed": 3.0},
+        {"type": "land"}
+    ]
+}

@@ -1,0 +1,15 @@
+{
+    "name": "Plains — Iris (offset)",
+    "description": "Same plains environment but with the Iris spawned 10m east.\nUseful for testing spawn positioning.",
+
+    "environment": {
+        "world_file": "plains_env.sdf",
+        "world_name": "plains_world"
+    },
+
+    "drone": {
+        "model_path": "$ARDUPILOT_GAZEBO/models/iris_with_ardupilot/model.sdf",
+        "spawn_name": "iris_offset",
+        "spawn_position": [10, 0, 0.5]
+    }
+}

@@ -214,7 +214,14 @@ class EnvironmentTab(ttk.Frame):
             self.state.set_gazebo_running(True)
             self.after(0, self._update_ui_running)
             
-            cmd = f'bash -c "source {self.launch_script} {world["file"]}"'
+            # Clean snap paths from LD_LIBRARY_PATH to prevent GUI crashes
+            # (Ubuntu 24.04 + VirtualBox snap libpthread conflict)
+            snap_clean = (
+                'export LD_LIBRARY_PATH='
+                '$(echo "$LD_LIBRARY_PATH" | tr \':\' \'\\n\' | '
+                'grep -v \'/snap/\' | tr \'\\n\' \':\' | sed \'s/:$//\') && '
+            )
+            cmd = f'bash -c "{snap_clean}source {self.launch_script} {world["file"]}"'
             
             self.state.gazebo_process = subprocess.Popen(
                 cmd, shell=True,

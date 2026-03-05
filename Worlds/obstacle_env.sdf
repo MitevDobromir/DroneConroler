@@ -1,0 +1,153 @@
+<?xml version="1.0" ?>
+<sdf version="1.7">
+<world name="obstacle_world">
+<physics name="1ms" type="ignored">
+<max_step_size>0.001</max_step_size>
+<real_time_factor>1.0</real_time_factor>
+</physics>
+<plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"></plugin>
+<plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"></plugin>
+<plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"></plugin>
+<plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+  <render_engine>ogre2</render_engine>
+</plugin>
+<plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"></plugin>
+<plugin filename="gz-sim-navsat-system" name="gz::sim::systems::NavSat"></plugin>
+
+<spherical_coordinates>
+  <latitude_deg>-35.363262</latitude_deg>
+  <longitude_deg>149.165237</longitude_deg>
+  <elevation>584</elevation>
+  <heading_deg>0</heading_deg>
+  <surface_model>EARTH_WGS84</surface_model>
+</spherical_coordinates>
+
+<scene>
+<ambient>0.6 0.6 0.6 1</ambient>
+<background>0.8 0.9 1.0 1</background>
+<sky>
+<clouds><speed>12</speed></clouds>
+</sky>
+</scene>
+
+<light type="directional" name="sun">
+<cast_shadows>true</cast_shadows>
+<pose>0 0 10 0 0 0</pose>
+<diffuse>0.8 0.8 0.8 1</diffuse>
+<specular>0.2 0.2 0.2 1</specular>
+<direction>-0.5 0.1 -0.9</direction>
+</light>
+
+<!-- Ground plane -->
+<model name="ground_plane">
+<static>true</static>
+<link name="link">
+<collision name="collision">
+<geometry><plane><normal>0 0 1</normal><size>200 200</size></plane></geometry>
+</collision>
+<visual name="visual">
+<geometry><plane><normal>0 0 1</normal><size>200 200</size></plane></geometry>
+<material>
+<ambient>0.4 0.6 0.3 1</ambient>
+<diffuse>0.6 0.8 0.4 1</diffuse>
+</material>
+</visual>
+</link>
+</model>
+
+<!-- ============================================ -->
+<!-- OBSTACLES — for sonar / obstacle avoidance   -->
+<!-- ============================================ -->
+
+<!-- Wall 1: 10m north of spawn -->
+<model name="wall_north">
+<static>true</static>
+<pose>10 0 1.5 0 0 0</pose>
+<link name="link">
+<collision name="collision">
+<geometry><box><size>0.3 6 3</size></box></geometry>
+</collision>
+<visual name="visual">
+<geometry><box><size>0.3 6 3</size></box></geometry>
+<material>
+<ambient>0.6 0.3 0.2 1</ambient>
+<diffuse>0.8 0.4 0.3 1</diffuse>
+</material>
+</visual>
+</link>
+</model>
+
+<!-- Wall 2: 10m south of spawn -->
+<model name="wall_south">
+<static>true</static>
+<pose>-10 0 1.5 0 0 0</pose>
+<link name="link">
+<collision name="collision">
+<geometry><box><size>0.3 6 3</size></box></geometry>
+</collision>
+<visual name="visual">
+<geometry><box><size>0.3 6 3</size></box></geometry>
+<material>
+<ambient>0.6 0.3 0.2 1</ambient>
+<diffuse>0.8 0.4 0.3 1</diffuse>
+</material>
+</visual>
+</link>
+</model>
+
+<!-- Pillar 1: 5m north-east -->
+<model name="pillar_ne">
+<static>true</static>
+<pose>5 -5 2 0 0 0</pose>
+<link name="link">
+<collision name="collision">
+<geometry><cylinder><radius>0.5</radius><length>4</length></cylinder></geometry>
+</collision>
+<visual name="visual">
+<geometry><cylinder><radius>0.5</radius><length>4</length></cylinder></geometry>
+<material>
+<ambient>0.5 0.5 0.5 1</ambient>
+<diffuse>0.7 0.7 0.7 1</diffuse>
+</material>
+</visual>
+</link>
+</model>
+
+<!-- Pillar 2: 5m north-west -->
+<model name="pillar_nw">
+<static>true</static>
+<pose>5 5 2 0 0 0</pose>
+<link name="link">
+<collision name="collision">
+<geometry><cylinder><radius>0.5</radius><length>4</length></cylinder></geometry>
+</collision>
+<visual name="visual">
+<geometry><cylinder><radius>0.5</radius><length>4</length></cylinder></geometry>
+<material>
+<ambient>0.5 0.5 0.5 1</ambient>
+<diffuse>0.7 0.7 0.7 1</diffuse>
+</material>
+</visual>
+</link>
+</model>
+
+<!-- Box obstacle: 3m ahead, offset right -->
+<model name="box_obstacle">
+<static>true</static>
+<pose>3 -2 0.75 0 0 0</pose>
+<link name="link">
+<collision name="collision">
+<geometry><box><size>1 1 1.5</size></box></geometry>
+</collision>
+<visual name="visual">
+<geometry><box><size>1 1 1.5</size></box></geometry>
+<material>
+<ambient>0.2 0.4 0.7 1</ambient>
+<diffuse>0.3 0.5 0.8 1</diffuse>
+</material>
+</visual>
+</link>
+</model>
+
+</world>
+</sdf>

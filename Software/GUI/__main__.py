@@ -1,5 +1,5 @@
 """
-Allow running as: python -m drone_control_center
+Allow running as: python3 -m GUI
 """
 from .main import main
 

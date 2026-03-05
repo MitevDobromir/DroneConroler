@@ -14,6 +14,7 @@ from .environment_tab import EnvironmentTab
 from .spawner_tab import SpawnerTab
 from .controller_tab import ControllerTab
 from .driver_tab import DriverTab
+from .simulation_tab import SimulationTab
 
 
 class DroneControlCenter:
@@ -86,12 +87,14 @@ class DroneControlCenter:
         self.spawner_tab = SpawnerTab(self.notebook, self.state)
         self.driver_tab = DriverTab(self.notebook, self.state)
         self.controller_tab = ControllerTab(self.notebook, self.state)
+        self.simulation_tab = SimulationTab(self.notebook, self.state)
         
         # Add tabs to notebook
         self.notebook.add(self.env_tab, text="  Environment  ")
         self.notebook.add(self.spawner_tab, text="  Spawn Drones  ")
         self.notebook.add(self.driver_tab, text="  Drivers  ")
         self.notebook.add(self.controller_tab, text="  Controller  ")
+        self.notebook.add(self.simulation_tab, text="  Simulations  ")
         
         # Listen for state changes to update header
         self.state.add_listener(self.on_state_changed)
@@ -132,6 +135,8 @@ class DroneControlCenter:
             running.append("Gazebo")
         if self.driver_tab.is_driver_running:
             running.append("Driver")
+        if self.simulation_tab.is_running:
+            running.append("Simulation")
             
         if running:
             names = " and ".join(running)
@@ -143,6 +148,9 @@ class DroneControlCenter:
         self.root.destroy()
         
     def _stop_all(self):
+        if self.simulation_tab.is_running:
+            self.simulation_tab.abort_requested = True
+            self.simulation_tab._stop_all_processes()
         if self.driver_tab.is_driver_running:
             self.driver_tab.stop_driver()
         if self.state.gazebo_process:

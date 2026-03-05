@@ -1,4 +1,18 @@
 TODO:
 Cube.sdf has issue [Err] [ArduPilotPlugin.cc:1174] [drone1] imu_sensor [drone1::base_link::imu_sensor] not found, abort ArduPilot plugin. 
+Precompile without running iva python3 ?
+Ultrasonic sensor for model
+Camera for model 
 
 Document what tech stack we use
+
+Documentation 
+What is ROS2
+What is Gazebo
+Tech stack
+How we input the worlds
+How do we input the drones
+How do we load the drivers
+How do we use the controller
+How are simulations made and used ?
+How to transfer it to actual drone ?

@@ -1,0 +1,15 @@
+{
+    "name": "Plains — Iris",
+    "description": "Flat grassland environment with an ArduPilot Iris quadcopter.\nAfter launching, start the SITL driver from the Driver tab,\nthen fly manually from the Controller tab.",
+
+    "environment": {
+        "world_file": "plains_env.sdf",
+        "world_name": "plains_world"
+    },
+
+    "drone": {
+        "model_path": "$ARDUPILOT_GAZEBO/models/iris_with_ardupilot/model.sdf",
+        "spawn_name": "iris_drone",
+        "spawn_position": [0, 0, 0.5]
+    }
+}
