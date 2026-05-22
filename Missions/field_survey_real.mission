@@ -1,0 +1,26 @@
+{
+    "name": "Field Survey (Real)",
+    "description": "Rectangular survey pattern for real drone hardware.\nConnects via telemetry radio on /dev/ttyUSB0.\n\nChange the connection to match your setup:\n  USB:   /dev/ttyACM0\n  Radio: /dev/ttyUSB0\n  WiFi:  udp:192.168.1.100:14550",
+
+    "drone": {
+        "mode": "real",
+        "firmware": "ardupilot",
+        "connection": "/dev/ttyUSB0",
+        "baud": 57600
+    },
+
+    "preflight": {
+        "min_satellites": 8,
+        "max_altitude_m": 30,
+        "require_sonar": false
+    },
+
+    "flight_plan": [
+        {"type": "takeoff", "altitude": 10},
+        {"type": "move", "x": 20, "y": 0, "speed": 2.0},
+        {"type": "move", "x": 0, "y": 20, "speed": 2.0},
+        {"type": "move", "x": -20, "y": 0, "speed": 2.0},
+        {"type": "move", "x": 0, "y": -20, "speed": 2.0},
+        {"type": "land"}
+    ]
+}

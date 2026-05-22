@@ -1,0 +1,30 @@
+{
+    "name": "Plains — Iris with Gimbal Camera",
+    "description": "Iris quadcopter with 3-axis gimbal and camera.\nAfter launch, enable the camera stream with:\n\n  gz topic -t /world/plains_world/model/iris_gimbal/model/gimbal/link/pitch_link/sensor/camera/image/enable_streaming -m gz.msgs.Boolean -p \"data: 1\"\n\nThen view it with:\n  gst-launch-1.0 -v udpsrc port=5600 caps='application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264' ! rtph264depay ! avdec_h264 ! videoconvert ! autovideosink sync=false",
+
+    "environment": {
+        "world_file": "plains_env.sdf",
+        "world_name": "plains_world"
+    },
+
+    "drone": {
+        "model_path": "$ARDUPILOT_GAZEBO/models/iris_with_gimbal/model.sdf",
+        "spawn_name": "iris_gimbal",
+        "spawn_position": [0, 0, 0.5]
+    },
+
+    "driver": {
+        "binary": "$ARDUPILOT_HOME/build/sitl/bin/arducopter",
+        "defaults": "default_params/copter.parm,default_params/gazebo-iris.parm,$ARDUPILOT_GAZEBO/config/gazebo-iris-gimbal.parm",
+        "working_dir": "$ARDUPILOT_HOME/Tools/autotest"
+    },
+
+    "flight_plan": [
+        {"type": "takeoff", "altitude": 10},
+        {"type": "move", "x": 20, "y": 0, "speed": 2.0},
+        {"type": "move", "x": 0, "y": 20, "speed": 2.0},
+        {"type": "move", "x": -20, "y": 0, "speed": 2.0},
+        {"type": "move", "x": 0, "y": -20, "speed": 2.0},
+        {"type": "land"}
+    ]
+}

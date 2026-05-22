@@ -1,0 +1,29 @@
+{
+    "name": "Sensor Test — Obstacle Avoidance",
+    "description": "Flies the camera+sonar drone through the obstacle course\nusing move_safe steps that read sonar and dodge obstacles.\n\nThe drone will fly toward the north wall, detect it via\nfront sonar, sidestep around it, and continue.\n\nRequires GUI mode for gpu_lidar sensors.",
+
+    "environment": {
+        "world_file": "obstacle_env.sdf",
+        "world_name": "obstacle_world",
+        "gui": true
+    },
+
+    "drone": {
+        "model_path": "~/ROS2_Tools/Models/iris_camera_sonar/model.sdf",
+        "spawn_name": "drone1",
+        "spawn_position": [0, 0, 0.5]
+    },
+
+    "driver": {
+        "binary": "$ARDUPILOT_HOME/build/sitl/bin/arducopter",
+        "defaults": "default_params/copter.parm,default_params/gazebo-iris.parm",
+        "working_dir": "$ARDUPILOT_HOME/Tools/autotest"
+    },
+
+    "flight_plan": [
+        {"type": "takeoff", "altitude": 2},
+        {"type": "move_safe", "x": 8, "y": 0, "speed": 1.0, "obstacle_threshold": 2.5, "sidestep_distance": 4.0},
+        {"type": "move_safe", "x": -8, "y": 0, "speed": 1.0, "obstacle_threshold": 2.5, "sidestep_distance": 4.0},
+        {"type": "land"}
+    ]
+}

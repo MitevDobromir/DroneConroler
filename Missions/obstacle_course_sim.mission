@@ -1,0 +1,26 @@
+{
+    "name": "Obstacle Course (Sim)",
+    "description": "Flies through the obstacle world using sonar avoidance.\nThe drone will detect walls and pillars and fly around them.",
+
+    "drone": {
+        "mode": "sim",
+        "firmware": "ardupilot",
+        "instance": 0,
+        "drone_name": "drone1"
+    },
+
+    "preflight": {
+        "min_satellites": 6,
+        "max_altitude_m": 30,
+        "require_sonar": true
+    },
+
+    "flight_plan": [
+        {"type": "takeoff", "altitude": 2},
+        {"type": "move_safe", "x": 8, "y": 0, "speed": 1.0, "obstacle_threshold": 2.0, "sidestep_distance": 3.0},
+        {"type": "move_safe", "x": 0, "y": 5, "speed": 1.0},
+        {"type": "move_safe", "x": -8, "y": 0, "speed": 1.0},
+        {"type": "move_safe", "x": 0, "y": -5, "speed": 1.0},
+        {"type": "land"}
+    ]
+}
