@@ -1,0 +1,7 @@
+
+# MAVProxy runtime logs — regenerated every run, never track
+Software/mav.parm
+Software/mav.tlog
+Software/mav.tlog.raw
+mav.tlog*
+mav.parm
