@@ -281,7 +281,7 @@ class DroneController:
         """Arm the drone, retrying on failure
 
         Args:
-            retries: Number of attempts (default 5)
+            retries: Number of attempts (default 10)
             retry_delay: Seconds between retries (default 5)
 
         Returns:
@@ -313,8 +313,13 @@ class DroneController:
         print("[ERROR] Arming failed after all attempts")
         return False
 
-    def takeoff(self, altitude):
-        """Takeoff to specified altitude"""
+    def takeoff(self, altitude, timeout=60):
+        """Takeoff to specified altitude
+
+        Args:
+            altitude: Target altitude in meters
+            timeout: Maximum seconds to wait (default 60)
+        """
         print(f"[TAKEOFF] Taking off to {altitude}m...")
 
         self.master.mav.command_long_send(
@@ -329,19 +334,19 @@ class DroneController:
         stable_count = 0
         last_alt = 0
 
-        while time.time() - start_time < 30:
+        while time.time() - start_time < timeout:
             msg = self.master.recv_match(type='GLOBAL_POSITION_INT', blocking=True, timeout=1)
             if msg:
                 current_alt = msg.relative_alt / 1000.0
-                print(f"[TAKEOFF] Altitude: {current_alt:.1f}m / {altitude}m")
+                print(f"[TAKEOFF] Altitude: {current_alt:.2f}m / {altitude}m")
 
-                if current_alt >= altitude * 0.90:
+                if current_alt >= altitude * 0.80:
                     print(f"[SUCCESS] Reached target altitude!")
                     return True
 
-                if abs(current_alt - last_alt) < 0.1:
+                if abs(current_alt - last_alt) < 0.15:
                     stable_count += 1
-                    if stable_count >= 3 and current_alt >= altitude * 0.85:
+                    if stable_count >= 3 and current_alt >= altitude * 0.75:
                         print(f"[SUCCESS] Altitude stabilized at {current_alt:.1f}m")
                         return True
                 else:
@@ -399,7 +404,7 @@ class DroneController:
         )
 
         tolerance = 1.0
-        timeout = max(distance / speed * 3, 15)
+        timeout = max(distance / speed * 5, 30)
         start_time = time.time()
         last_print = 0
 

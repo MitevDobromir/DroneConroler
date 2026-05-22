@@ -7,8 +7,19 @@ source /opt/ros/jazzy/setup.bash
 # Set Gazebo version
 export GZ_VERSION=harmonic
 
-# Software rendering for VirtualBox
-export LIBGL_ALWAYS_SOFTWARE=1
+# --- Rendering on VirtualBox (Ubuntu 24.04) ---
+# VirtualBox exposes no usable Vulkan device, so Mesa's default Zink
+# (OpenGL-on-Vulkan) path fails with "ZINK: failed to choose pdev" and
+# the sensor render thread can't create a GL context (gpu_lidar / camera
+# produce no data). Force Mesa to use the llvmpipe software renderer,
+# which gives a working GL context for both the GUI and the sensor thread.
+# This is CPU rendering (slower) but it is the only path that works for
+# GPU-rendered sensors in this VM.
+export GALLIUM_DRIVER=llvmpipe
+export MESA_LOADER_DRIVER_OVERRIDE=llvmpipe
+export __GLX_VENDOR_LIBRARY_NAME=mesa
+# Do NOT set LIBGL_ALWAYS_SOFTWARE - it conflicts with the above and
+# corrupts EGL vendor selection on this guest.
 
 # ArduPilot paths
 ARDUPILOT_BASE="$HOME/ROS2_Tools/ArduPilot"
@@ -27,13 +38,13 @@ export GZ_SIM_RESOURCE_PATH="$ARDUPILOT_BASE/ardupilot_gazebo/models:$ARDUPILOT_
 # Add ArduPilot tools to PATH
 export PATH="$ARDUPILOT_BASE/ardupilot/Tools/autotest:$PATH"
 
-echo "🚁 ArduPilot + Gazebo environment loaded!"
-echo "📦 Gazebo version: $GZ_VERSION"
-echo "🔧 Plugin path: $GZ_SIM_SYSTEM_PLUGIN_PATH"
+echo "ArduPilot + Gazebo environment loaded"
+echo "Gazebo version: $GZ_VERSION"
+echo "Renderer: llvmpipe (software, VirtualBox-safe)"
 
 # Verify plugins
 if [ -f "$ARDUPILOT_PLUGIN_PATH/libArduPilotPlugin.so" ]; then
-    echo "✅ ArduPilot plugin found"
+    echo "[OK] ArduPilot plugin found"
 else
-    echo "❌ ArduPilot plugin not found"
+    echo "[ERROR] ArduPilot plugin not found"
 fi

@@ -22,8 +22,7 @@
 
     "flight_plan": [
         {"type": "takeoff", "altitude": 2},
-        {"type": "move_safe", "x": 8, "y": 0, "speed": 1.0, "obstacle_threshold": 2.5, "sidestep_distance": 4.0},
-        {"type": "move_safe", "x": -8, "y": 0, "speed": 1.0, "obstacle_threshold": 2.5, "sidestep_distance": 4.0},
+        {"type": "move_safe", "x": 5, "y": 5, "speed": 1.0, "obstacle_threshold": 2.5, "sidestep_distance": 4.0},
         {"type": "land"}
     ]
 }

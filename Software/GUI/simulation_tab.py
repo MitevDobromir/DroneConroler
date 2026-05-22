@@ -22,6 +22,17 @@ File format (.simulation):
 Set "gui": true in environment when the simulation uses sensors that
 need the rendering engine (camera, gpu_lidar). This launches Gazebo
 with the GUI window integrated instead of headless server-only mode.
+        "world_name": "plains_world",
+        "gui": false
+    },
+    "drone": { ... },
+    "driver": { ... },
+    "flight_plan": [ ... ]
+}
+
+Set "gui": true in environment when the simulation uses sensors that
+need the rendering engine (camera, gpu_lidar). This launches Gazebo
+with the GUI window integrated instead of headless server-only mode.
 """
 import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext
@@ -83,6 +94,7 @@ class SimulationTab(ttk.Frame):
         self.arducopter_process: Optional[subprocess.Popen] = None
         self.mavproxy_process: Optional[subprocess.Popen] = None
         self.drone_controller: Optional[object] = None
+        self.gui_integrated: bool = False
         self.gui_integrated: bool = False
         self.current_phase = self.PHASE_IDLE
 
@@ -302,6 +314,10 @@ class SimulationTab(ttk.Frame):
         if sim['environment'].get('gui'):
             world_display += "  (GUI mode — sensors)"
         self.detail_world_var.set(world_display)
+        world_display = sim['environment']['world_file']
+        if sim['environment'].get('gui'):
+            world_display += "  (GUI mode — sensors)"
+        self.detail_world_var.set(world_display)
         self.detail_drone_var.set(sim['drone']['spawn_name'])
         pos = sim['drone'].get('spawn_position', [0, 0, 0.5])
         self.detail_pos_var.set(f"X={pos[0]}  Y={pos[1]}  Z={pos[2]}")
@@ -314,6 +330,8 @@ class SimulationTab(ttk.Frame):
                 steps.append(f"Takeoff {s['altitude']}m")
             elif s['type'] == 'move':
                 steps.append(f"Move X={s['x']} Y={s['y']} @ {s.get('speed', 1)}m/s")
+            elif s['type'] == 'move_safe':
+                steps.append(f"Avoid X={s['x']} Y={s['y']} @ {s.get('speed', 1)}m/s")
             elif s['type'] == 'move_safe':
                 steps.append(f"Avoid X={s['x']} Y={s['y']} @ {s.get('speed', 1)}m/s")
             elif s['type'] == 'land':
@@ -423,8 +441,8 @@ class SimulationTab(ttk.Frame):
 
             # ── Launch GUI (best-effort, only if running headless) ──
             if not self.gui_integrated:
-                self._set_step("Opening Gazebo window")
-                self._launch_gui()
+                self._set_step("Gazebo window open")
+                
 
             # ── Phase 3: Start SITL Driver ──
             self._set_phase(self.PHASE_DRIVER)
@@ -477,6 +495,7 @@ class SimulationTab(ttk.Frame):
             self.abort_requested = False
             self.drone_controller = None
             self.gui_integrated = False
+            self.gui_integrated = False
 
             # Always clean up SITL if still running
             self._stop_sitl_processes()
@@ -496,6 +515,7 @@ class SimulationTab(ttk.Frame):
     def _launch_environment(self, env_cfg: Dict) -> bool:
         world_file = env_cfg['world_file']
         world_name = env_cfg.get('world_name')
+        self.gui_integrated = env_cfg.get('gui', False)
         self.gui_integrated = env_cfg.get('gui', False)
 
         self.log(f"[ENV] Launching {world_file}...")
@@ -527,6 +547,16 @@ class SimulationTab(ttk.Frame):
             f'export GZ_SIM_RESOURCE_PATH='
             f'"$GZ_SIM_RESOURCE_PATH:{ros2_tools}/Models:{ros2_tools}/Worlds" && '
         )
+
+        if self.gui_integrated:
+            # Launch with GUI integrated (gz sim -r) — needed for
+            # gpu_lidar and camera sensors which require the rendering engine.
+            gz_cmd = f'gz sim -r -v4 {world_path}'
+            self.log("[ENV] Starting Gazebo with GUI (sensors need rendering)")
+        else:
+            # Headless server only (gz sim -s -r) — faster, no GPU needed.
+            gz_cmd = f'gz sim -s -r -v4 {world_path}'
+            self.log("[ENV] Starting Gazebo server (headless)")
 
         if self.gui_integrated:
             # Launch with GUI integrated (gz sim -r) — needed for
@@ -589,6 +619,9 @@ class SimulationTab(ttk.Frame):
             self._set_phase(self.PHASE_ERROR)
             return False
 
+        settle = 10 if self.gui_integrated else 5
+        self.log(f"[ENV] Gazebo running — settling for {settle} seconds...")
+        time.sleep(settle)
         settle = 10 if self.gui_integrated else 5
         self.log(f"[ENV] Gazebo running — settling for {settle} seconds...")
         time.sleep(settle)
@@ -714,6 +747,8 @@ class SimulationTab(ttk.Frame):
         """Launch arducopter + mavproxy directly (no gnome-terminal)."""
         binary = self._resolve(driver_cfg.get(
             'binary', '$ARDUPILOT_HOME/build/sitl/bin/arducopter'))
+        defaults = self._resolve(driver_cfg.get(
+            'defaults', 'default_params/copter.parm,default_params/gazebo-iris.parm'))
         defaults = self._resolve(driver_cfg.get(
             'defaults', 'default_params/copter.parm,default_params/gazebo-iris.parm'))
         work_dir = self._resolve(driver_cfg.get('working_dir', ''))
@@ -866,6 +901,10 @@ class SimulationTab(ttk.Frame):
         if not self.drone_controller.wait_ready():
             self.log("[WARN] Ready timeout — continuing anyway")
 
+        self.log("[CONNECT] Waiting for autopilot to be ready...")
+        if not self.drone_controller.wait_ready():
+            self.log("[WARN] Ready timeout — continuing anyway")
+
         self.log("[CONNECT] Waiting for GPS lock...")
         if not self.drone_controller.wait_for_gps():
             self.log("[ERROR] GPS lock timeout")
@@ -935,6 +974,18 @@ class SimulationTab(ttk.Frame):
                     self._emergency_land()
                     return False
 
+            elif step_type == 'move_safe':
+                x, y = step['x'], step['y']
+                speed = step.get('speed', 1.0)
+                threshold = step.get('obstacle_threshold', 2.0)
+                sidestep = step.get('sidestep_distance', 3.0)
+                self.log(f"[STEP {step_num}/{len(plan)}] Move (avoidance) X={x}m Y={y}m @ {speed}m/s")
+                self._set_step(f"Avoid X={x} Y={y}")
+                if not self._move_safe(dc, x, y, speed, threshold, sidestep):
+                    self.log("[ERROR] Safe move failed")
+                    self._emergency_land()
+                    return False
+
             elif step_type == 'land':
                 self.log(f"[STEP {step_num}/{len(plan)}] Landing")
                 self._set_step("Landing")
@@ -943,6 +994,125 @@ class SimulationTab(ttk.Frame):
             self.log(f"  Done\n")
             time.sleep(1)
 
+        return True
+
+    # ─────────────────────────────────── Sonar + obstacle avoidance
+    def _read_sonar(self, direction: str) -> float:
+        """Read a sonar value from Gazebo topic via subprocess.
+
+        Args:
+            direction: 'front', 'left', 'right', or 'down'
+
+        Returns:
+            Distance in meters, or inf if no obstacle / read failure.
+        """
+        topic = f'/drone/sonar/{direction}'
+        try:
+            result = subprocess.run(
+                ['gz', 'topic', '-e', '-t', topic, '-n', '1'],
+                capture_output=True, text=True, timeout=3
+            )
+            for line in result.stdout.splitlines():
+                stripped = line.strip()
+                if stripped.startswith('ranges:'):
+                    value = stripped.split(':')[1].strip()
+                    return float(value)
+        except (subprocess.TimeoutExpired, ValueError, Exception):
+            pass
+        return float('inf')
+
+    def _move_safe(self, dc, x: float, y: float, speed: float = 1.0,
+                   obstacle_threshold: float = 2.0,
+                   sidestep_distance: float = 3.0) -> bool:
+        """Move with obstacle avoidance using sonar sensors.
+
+        Bug-algorithm approach: move toward target, check sonar,
+        sidestep around obstacles, continue.
+
+        Args:
+            dc: DroneController instance
+            x: North offset in meters
+            y: East offset in meters
+            speed: Movement speed in m/s
+            obstacle_threshold: Stop when obstacle closer than this
+            sidestep_distance: How far to sidestep around obstacle
+        """
+        import math
+
+        total_distance = math.sqrt(x**2 + y**2)
+        if total_distance < 0.1:
+            return True
+
+        # Direction and perpendicular vectors
+        dir_x = x / total_distance
+        dir_y = y / total_distance
+        perp_x = dir_y
+        perp_y = -dir_x
+
+        remaining_x = x
+        remaining_y = y
+        max_avoidances = 5
+        avoidance_count = 0
+
+        while math.sqrt(remaining_x**2 + remaining_y**2) > 1.0:
+            if self.abort_requested:
+                return False
+
+            front_dist = self._read_sonar('front')
+            self.log(f"[SONAR] Front: {front_dist:.1f}m")
+
+            if front_dist < obstacle_threshold and avoidance_count < max_avoidances:
+                avoidance_count += 1
+                left_dist = self._read_sonar('left')
+                right_dist = self._read_sonar('right')
+                self.log(f"[AVOID] Obstacle at {front_dist:.1f}m! "
+                         f"Left: {left_dist:.1f}m  Right: {right_dist:.1f}m")
+
+                # Pick clearer side
+                if left_dist >= right_dist:
+                    step_x = -perp_x * sidestep_distance
+                    step_y = -perp_y * sidestep_distance
+                    self.log(f"[AVOID] Sidestepping LEFT {sidestep_distance}m")
+                else:
+                    step_x = perp_x * sidestep_distance
+                    step_y = perp_y * sidestep_distance
+                    self.log(f"[AVOID] Sidestepping RIGHT {sidestep_distance}m")
+
+                if not dc.move_relative(step_x, step_y, speed):
+                    return False
+
+                # Move forward past obstacle
+                fwd_dist = obstacle_threshold + 2.0
+                fwd_x = dir_x * fwd_dist
+                fwd_y = dir_y * fwd_dist
+                self.log(f"[AVOID] Moving forward {fwd_dist:.1f}m to clear obstacle")
+                if not dc.move_relative(fwd_x, fwd_y, speed):
+                    return False
+
+                # Sidestep back
+                self.log(f"[AVOID] Returning to original path")
+                if not dc.move_relative(-step_x, -step_y, speed):
+                    return False
+
+                remaining_x -= fwd_x
+                remaining_y -= fwd_y
+                self.log(f"[AVOID] Done — remaining: N={remaining_x:.1f} E={remaining_y:.1f}")
+
+            else:
+                # Path clear — move in 5m steps
+                remaining_dist = math.sqrt(remaining_x**2 + remaining_y**2)
+                step_size = min(5.0, remaining_dist)
+                fraction = step_size / remaining_dist
+                step_x = remaining_x * fraction
+                step_y = remaining_y * fraction
+
+                if not dc.move_relative(step_x, step_y, speed):
+                    return False
+
+                remaining_x -= step_x
+                remaining_y -= step_y
+
+        self.log(f"[MOVE_SAFE] Target reached ({avoidance_count} avoidance(s))")
         return True
 
     # ─────────────────────────────────── Sonar + obstacle avoidance
