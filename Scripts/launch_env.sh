@@ -16,6 +16,10 @@ source /opt/ros/jazzy/setup.bash
 # Source ArduPilot environment (includes plugin paths)
 source ~/ROS2_Tools/ArduPilot/setup_ardupilot_env.sh
 
+# Strip snap paths from LD_LIBRARY_PATH (VirtualBox snap libpthread clashes
+# with system libpthread and crashes the Gazebo GUI subprocess)
+export LD_LIBRARY_PATH=$(echo "$LD_LIBRARY_PATH" | tr ':' '\n' | grep -v '/snap/' | tr '\n' ':' | sed 's/:$//')
+
 # Tell Gazebo where to find custom models and worlds
 export ROS2_TOOLS_PATH=~/ROS2_Tools
 export GZ_SIM_RESOURCE_PATH=$GZ_SIM_RESOURCE_PATH:$ROS2_TOOLS_PATH/Models
@@ -34,4 +38,4 @@ fi
 echo "Loading world: $WORLD (headless rendering - sensors active, no window)"
 
 # Launch Gazebo server with EGL headless rendering
-gz_cmd = f'gz sim -r -v4 {world_path}'
+gz sim -r -v4 ~/ROS2_Tools/Worlds/"$WORLD"

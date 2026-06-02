@@ -79,6 +79,7 @@ class SimulationTab(ttk.Frame):
         self.is_running = False
         self.abort_requested = False
         self.gazebo_process: Optional[subprocess.Popen] = None
+        self.gui_process: Optional[subprocess.Popen] = None
         self.arducopter_process: Optional[subprocess.Popen] = None
         self.mavproxy_process: Optional[subprocess.Popen] = None
         self.drone_controller: Optional[object] = None
@@ -637,6 +638,74 @@ class SimulationTab(ttk.Frame):
             self._set_phase(self.PHASE_ERROR)
             return False
 
+    # ─────────────────────────────────── GUI window (optional)
+    def _launch_gui(self):
+        """Launch the Gazebo GUI window as a separate process.
+
+        The GUI connects to the already-running server via `gz sim -g`.
+        If it crashes (e.g. snap libpthread conflict on VirtualBox), the
+        server keeps running — no harm done.
+        """
+        self.log("[GUI] Launching Gazebo GUI window...")
+
+        # Build environment that filters out snap paths from LD_LIBRARY_PATH
+        # to work around the libpthread symbol conflict on Ubuntu 24.04 + VirtualBox.
+        setup_ardupilot = self.state.ros2_tools_path / "ArduPilot" / "setup_ardupilot_env.sh"
+
+        env_setup = 'source /opt/ros/jazzy/setup.bash && '
+        if setup_ardupilot.exists():
+            env_setup += f'source {setup_ardupilot} && '
+
+        # Strip snap paths from LD_LIBRARY_PATH
+        env_setup += (
+            'export LD_LIBRARY_PATH='
+            '$(echo "$LD_LIBRARY_PATH" | tr \':\' \'\\n\' | grep -v \'/snap/\' '
+            '| tr \'\\n\' \':\' | sed \'s/:$//\') && '
+        )
+
+        gui_cmd = f'{env_setup}gz sim -g -v4'
+
+        try:
+            self.gui_process = subprocess.Popen(
+                ['bash', '-c', gui_cmd],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                preexec_fn=os.setsid
+            )
+
+            # Monitor GUI output in background
+            def _read_gui():
+                try:
+                    for line in iter(self.gui_process.stdout.readline, ''):
+                        if line.strip():
+                            self.after(0, lambda l=line: self.log(f"[GUI] {l.rstrip()}"))
+                except Exception:
+                    pass
+                # Check if it exited quickly (crash)
+                if self.gui_process and self.gui_process.poll() is not None:
+                    rc = self.gui_process.returncode
+                    if rc != 0:
+                        self.after(0, lambda: self.log(
+                            f"[GUI] Window closed (exit code {rc}) — "
+                            f"server still running, this is OK"))
+            threading.Thread(target=_read_gui, daemon=True).start()
+
+            # Give it a moment to either start or crash
+            time.sleep(3)
+
+            if self.gui_process.poll() is None:
+                self.log("[GUI] Gazebo GUI window is open")
+            else:
+                self.log("[GUI] GUI window failed to start — server still running headless")
+                self.log("[GUI] This is normal on VirtualBox due to snap library conflicts")
+                self.gui_process = None
+
+        except Exception as e:
+            self.log(f"[GUI] Could not launch GUI: {e}")
+            self.log("[GUI] Server continues running headless")
+            self.gui_process = None
+
     # ─────────────────────────────────── Phase 3: Start SITL Driver
     def _start_driver(self, driver_cfg: Dict) -> bool:
         """Launch arducopter + mavproxy directly (no gnome-terminal)."""
@@ -1043,6 +1112,14 @@ class SimulationTab(ttk.Frame):
             except Exception:
                 pass
             self.arducopter_process = None
+
+        # Stop GUI
+        if self.gui_process:
+            try:
+                os.killpg(os.getpgid(self.gui_process.pid), signal.SIGTERM)
+            except Exception:
+                pass
+            self.gui_process = None
 
         # Stop server
         if self.gazebo_process:

@@ -37,12 +37,9 @@ sudo apt install -y \
     libopencv-dev \
     libgstreamer1.0-dev \
     libgstreamer-plugins-base1.0-dev \
-    gstreamer1.0-plugins-good \
     gstreamer1.0-plugins-bad \
-    gstreamer1.0-plugins-ugly \
     gstreamer1.0-libav \
     gstreamer1.0-gl \
-    gstreamer1.0-tools \
     python3-pip \
     python3-lxml
 
@@ -100,15 +97,7 @@ print_status "✅ ArduPilot plugin built successfully"
 
 print_status "=== Step 6: Setting up Environment ==="
 ENV_SCRIPT="$WORKSPACE_DIR/setup_ardupilot_env.sh"
-
-# Don't clobber an existing env script - user may have customized it
-# (e.g. with VirtualBox-specific rendering tweaks).
-if [ -f "$ENV_SCRIPT" ]; then
-    print_status "Env script already exists at $ENV_SCRIPT"
-    print_status "  Preserving existing file. Delete it first if you want a fresh copy."
-else
-    print_status "Creating env script at $ENV_SCRIPT"
-    cat > $ENV_SCRIPT << 'ENVEOF'
+cat > $ENV_SCRIPT << 'ENVEOF'
 #!/bin/bash
 # ArduPilot + Gazebo Environment Setup
 
@@ -118,19 +107,8 @@ source /opt/ros/jazzy/setup.bash
 # Set Gazebo version
 export GZ_VERSION=harmonic
 
-# --- Rendering on VirtualBox (Ubuntu 24.04) ---
-# VirtualBox exposes no usable Vulkan device, so Mesa's default Zink
-# (OpenGL-on-Vulkan) path fails with "ZINK: failed to choose pdev" and
-# the sensor render thread can't create a GL context (gpu_lidar / camera
-# produce no data). Force Mesa to use the llvmpipe software renderer,
-# which gives a working GL context for both the GUI and the sensor thread.
-# This is CPU rendering (slower) but it is the only path that works for
-# GPU-rendered sensors in this VM.
-export GALLIUM_DRIVER=llvmpipe
-export MESA_LOADER_DRIVER_OVERRIDE=llvmpipe
-export __GLX_VENDOR_LIBRARY_NAME=mesa
-# Do NOT set LIBGL_ALWAYS_SOFTWARE - it conflicts with the above and
-# corrupts EGL vendor selection on this guest.
+# Software rendering for VirtualBox
+export LIBGL_ALWAYS_SOFTWARE=1
 
 # ArduPilot paths
 ARDUPILOT_BASE="$HOME/ROS2_Tools/ArduPilot"
@@ -149,19 +127,19 @@ export GZ_SIM_RESOURCE_PATH="$ARDUPILOT_BASE/ardupilot_gazebo/models:$ARDUPILOT_
 # Add ArduPilot tools to PATH
 export PATH="$ARDUPILOT_BASE/ardupilot/Tools/autotest:$PATH"
 
-echo "ArduPilot + Gazebo environment loaded"
-echo "Gazebo version: $GZ_VERSION"
-echo "Renderer: llvmpipe (software, VirtualBox-safe)"
+echo "🚁 ArduPilot + Gazebo environment loaded!"
+echo "📦 Gazebo version: $GZ_VERSION"
+echo "🔧 Plugin path: $GZ_SIM_SYSTEM_PLUGIN_PATH"
 
 # Verify plugins
 if [ -f "$ARDUPILOT_PLUGIN_PATH/libArduPilotPlugin.so" ]; then
-    echo "[OK] ArduPilot plugin found"
+    echo "✅ ArduPilot plugin found"
 else
-    echo "[ERROR] ArduPilot plugin not found"
+    echo "❌ ArduPilot plugin not found"
 fi
 ENVEOF
-    chmod +x $ENV_SCRIPT
-fi
+
+chmod +x $ENV_SCRIPT
 
 # Add to bashrc if not already there
 if ! grep -qF "source $ENV_SCRIPT" ~/.bashrc; then

@@ -15,33 +15,49 @@ from .global_state import GlobalState
 from .theme import get_terminal_colors, COLORS
 
 
-# Default built-in driver configurations
+# Default built-in driver configurations.
+#
+# These launch ArduPilot SITL via Scripts/launch_sitl.sh, which spawns
+# the SITL binary (arducopter / arduplane / ardurover) plus MAVProxy
+# directly. This mirrors the launch pattern used by the Simulation tab
+# and works on Ubuntu 24.04 + VirtualBox. The older sim_vehicle.py
+# wrapper does not (its child processes pick up snap libraries and
+# crash with libpthread symbol-lookup errors).
+#
+# After launch, MAVLink is available on UDP 127.0.0.1:14550 and 14551
+# for instance 0. Higher instance numbers shift each port by 2 (so
+# instance 1 = 14552/14553, etc.).
 BUILTIN_DRIVERS = [
     {
         'name': 'ArduCopter SITL',
-        'description': 'ArduPilot Software-In-The-Loop for multicopters.\n'
-                       'Connects to Gazebo via JSON interface.',
-        'command': 'sim_vehicle.py',
-        'args': '-v ArduCopter -f gazebo-iris --model JSON --console',
-        'working_dir': '$ARDUPILOT_HOME/Tools/autotest',
+        'description': 'ArduPilot multicopter Software-In-The-Loop.\n'
+                       'Connects to Gazebo via the JSON model interface.\n'
+                       'MAVLink: udp:127.0.0.1:14550, udp:127.0.0.1:14551',
+        'command': '~/ROS2_Tools/Scripts/launch_sitl.sh',
+        'args': 'copter',
+        'working_dir': '~/ROS2_Tools',
         'builtin': True,
         'env_vars': {},
     },
     {
         'name': 'ArduPlane SITL',
-        'description': 'ArduPilot SITL for fixed-wing aircraft.',
-        'command': 'sim_vehicle.py',
-        'args': '-v ArduPlane -f gazebo-iris --model JSON --console',
-        'working_dir': '$ARDUPILOT_HOME/Tools/autotest',
+        'description': 'ArduPilot fixed-wing aircraft SITL.\n'
+                       'Connects to Gazebo via the JSON model interface.\n'
+                       'MAVLink: udp:127.0.0.1:14550, udp:127.0.0.1:14551',
+        'command': '~/ROS2_Tools/Scripts/launch_sitl.sh',
+        'args': 'plane',
+        'working_dir': '~/ROS2_Tools',
         'builtin': True,
         'env_vars': {},
     },
     {
         'name': 'ArduRover SITL',
-        'description': 'ArduPilot SITL for ground rovers.',
-        'command': 'sim_vehicle.py',
-        'args': '-v Rover -f gazebo-iris --model JSON --console',
-        'working_dir': '$ARDUPILOT_HOME/Tools/autotest',
+        'description': 'ArduPilot ground rover SITL.\n'
+                       'Connects to Gazebo via the JSON model interface.\n'
+                       'MAVLink: udp:127.0.0.1:14550, udp:127.0.0.1:14551',
+        'command': '~/ROS2_Tools/Scripts/launch_sitl.sh',
+        'args': 'rover',
+        'working_dir': '~/ROS2_Tools',
         'builtin': True,
         'env_vars': {},
     },
@@ -165,17 +181,38 @@ class DriverTab(ttk.Frame):
         ctrl_frame.columnconfigure(0, weight=1)
         ctrl_frame.columnconfigure(1, weight=1)
 
+        # Instance selector for multi-drone setups. Applies to built-in
+        # SITL drivers only; custom drivers manage their own args.
+        # Each instance gets its own port allocation:
+        #   TCP master : 5760 + (instance * 10)
+        #   MAVLink UDP: 14550 + (instance * 2) and 14551 + (instance * 2)
+        inst_frame = ttk.Frame(ctrl_frame)
+        inst_frame.grid(row=0, column=0, columnspan=2, sticky="w", pady=(0, 8))
+        ttk.Label(inst_frame, text="Instance:").pack(side=tk.LEFT)
+        self.instance_var = tk.IntVar(value=0)
+        self.instance_spin = ttk.Spinbox(
+            inst_frame, from_=0, to=31, width=5,
+            textvariable=self.instance_var,
+            command=self._on_instance_changed,
+            state='disabled')
+        self.instance_spin.pack(side=tk.LEFT, padx=(5, 0))
+        self.instance_spin.bind('<KeyRelease>', self._on_instance_changed)
+        self.instance_spin.bind('<FocusOut>', self._on_instance_changed)
+        ttk.Label(inst_frame,
+                  text="  (0-31, used by built-in SITL drivers)",
+                  foreground=COLORS['fg_muted']).pack(side=tk.LEFT)
+
         self.launch_btn = ttk.Button(
             ctrl_frame, text="▶  Launch Driver",
             command=self.launch_driver, state='disabled',
             style='Accent.TButton')
-        self.launch_btn.grid(row=0, column=0, sticky="ew", padx=(0, 5), pady=5)
+        self.launch_btn.grid(row=1, column=0, sticky="ew", padx=(0, 5), pady=5)
 
         self.stop_btn = ttk.Button(
             ctrl_frame, text="⏹  Stop Driver",
             command=self.stop_driver, state='disabled',
             style='Danger.TButton')
-        self.stop_btn.grid(row=0, column=1, sticky="ew", padx=(5, 0), pady=5)
+        self.stop_btn.grid(row=1, column=1, sticky="ew", padx=(5, 0), pady=5)
 
         # Terminal output
         term_frame = ttk.LabelFrame(right_frame, text="Driver Output", padding="10")
@@ -231,6 +268,25 @@ class DriverTab(ttk.Frame):
             json.dump(custom, f, indent=2)
 
     # --------------------------------------------------------- Selection
+    def _is_sitl_builtin(self, drv: Dict) -> bool:
+        """True if this driver is one of our built-ins that uses
+        launch_sitl.sh. These take the instance from the Spinbox; custom
+        drivers manage their own args verbatim.
+        """
+        return drv.get('builtin', False) and 'launch_sitl.sh' in drv.get('command', '')
+
+    def _read_instance(self) -> int:
+        """Read the instance Spinbox safely, defaulting to 0 on error."""
+        try:
+            return int(self.instance_var.get())
+        except (tk.TclError, ValueError):
+            self.instance_var.set(0)
+            return 0
+
+    def _on_instance_changed(self, _event=None):
+        """Refresh the details panel when the instance Spinbox changes."""
+        self.on_driver_selected()
+
     def on_driver_selected(self, event=None):
         sel = self.driver_listbox.curselection()
         if not sel:
@@ -238,7 +294,17 @@ class DriverTab(ttk.Frame):
         drv = self.drivers[sel[0]]
 
         self.detail_name_var.set(drv['name'])
-        full_cmd = f"{drv['command']} {drv.get('args', '')}".strip()
+
+        # For built-in SITL drivers, the effective command line includes
+        # the instance number from the Spinbox.
+        args = drv.get('args', '')
+        if self._is_sitl_builtin(drv):
+            args = f"{args} {self._read_instance()}".strip()
+            self.instance_spin.config(state='normal')
+        else:
+            self.instance_spin.config(state='disabled')
+        full_cmd = f"{drv['command']} {args}".strip()
+
         self.detail_cmd_var.set(full_cmd)
         self.detail_dir_var.set(drv.get('working_dir', '(default)'))
         self.detail_desc_var.set(drv.get('description', ''))
@@ -292,7 +358,13 @@ class DriverTab(ttk.Frame):
             return
 
         drv = self.drivers[sel[0]]
-        full_cmd = f"{drv['command']} {drv.get('args', '')}".strip()
+
+        # For built-in SITL drivers, append the instance from the Spinbox.
+        # Custom drivers use their args verbatim.
+        args = drv.get('args', '')
+        if self._is_sitl_builtin(drv):
+            args = f"{args} {self._read_instance()}".strip()
+        full_cmd = f"{drv['command']} {args}".strip()
         work_dir = self._resolve_path(drv.get('working_dir', ''))
         if not work_dir or not Path(work_dir).is_dir():
             work_dir = str(Path.home())
@@ -361,7 +433,12 @@ class DriverTab(ttk.Frame):
                 os.killpg(os.getpgid(self.driver_process.pid), signal.SIGTERM)
             except Exception:
                 pass
-        subprocess.run(['pkill', '-f', 'sim_vehicle.py'], capture_output=True)
+        # Backup cleanup in case the process-group kill missed something.
+        # sim_vehicle.py kept for back-compat with custom drivers that
+        # may still reference it.
+        for proc_name in ('mavproxy.py', 'arducopter', 'arduplane',
+                          'ardurover', 'sim_vehicle.py'):
+            subprocess.run(['pkill', '-f', proc_name], capture_output=True)
 
     # ------------------------------------------- Add / Edit / Remove custom
     def open_add_dialog(self):
