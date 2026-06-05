@@ -15,7 +15,6 @@ from .spawner_tab import SpawnerTab
 from .controller_tab import ControllerTab
 from .driver_tab import DriverTab
 from .simulation_tab import SimulationTab
-from .camera_tab import CameraTab
 
 
 class DroneControlCenter:
@@ -24,8 +23,8 @@ class DroneControlCenter:
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("Drone Control Center")
-        self.root.geometry("1680x1050")
-        self.root.minsize(1280, 800)
+        self.root.geometry("950x750")
+        self.root.minsize(850, 650)
         
         # Use global state
         self.state = STATE
@@ -89,7 +88,6 @@ class DroneControlCenter:
         self.driver_tab = DriverTab(self.notebook, self.state)
         self.controller_tab = ControllerTab(self.notebook, self.state)
         self.simulation_tab = SimulationTab(self.notebook, self.state)
-        self.camera_tab = CameraTab(self.notebook, self.state)
         
         # Add tabs to notebook
         self.notebook.add(self.env_tab, text="  Environment  ")
@@ -97,7 +95,6 @@ class DroneControlCenter:
         self.notebook.add(self.driver_tab, text="  Drivers  ")
         self.notebook.add(self.controller_tab, text="  Controller  ")
         self.notebook.add(self.simulation_tab, text="  Simulations  ")
-        self.notebook.add(self.camera_tab, text="  Camera  ")
         
         # Listen for state changes to update header
         self.state.add_listener(self.on_state_changed)

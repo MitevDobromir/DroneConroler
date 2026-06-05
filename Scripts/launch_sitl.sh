@@ -72,8 +72,8 @@ fi
 
 # Compute port offsets
 TCP_PORT=$(( 5760 + INSTANCE * 10 ))
-UDP_OUT_A=$(( 14550 + INSTANCE * 2 ))
-UDP_OUT_B=$(( 14551 + INSTANCE * 2 ))
+UDP_OUT_A=$(( 14550 + INSTANCE * 10 ))
+UDP_OUT_B=$(( 14551 + INSTANCE * 10 ))
 
 SITL_PID=""
 

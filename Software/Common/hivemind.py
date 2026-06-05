@@ -489,7 +489,7 @@ class HiveMind:
             # Check separation
             violations = self.check_separation(collision_distance)
             for n1, n2, dist in violations:
-                self._log(f"  ⚠️  {n1} ↔ {n2}: {dist:.1f}m (min: {collision_distance}m)")
+                self._log(f"  [WARN]  {n1} <-> {n2}: {dist:.1f}m (min: {collision_distance}m)")
 
             time.sleep(interval)
 
