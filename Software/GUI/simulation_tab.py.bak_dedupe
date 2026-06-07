@@ -867,38 +867,7 @@ class SimulationTab(ttk.Frame):
                 sidestep = step.get('sidestep_distance', 1.5)
                 self.log(f"[STEP {step_num}/{len(plan)}] Move (avoidance) X={x}m Y={y}m @ {speed}m/s")
                 self._set_step(f"Avoid X={x} Y={y}")
-                # Delegate to DroneInterface.move_safe so the CLI
-                # mission runner and the GUI share one obstacle-
-                # avoidance implementation. We wrap the existing
-                # DroneController in a SimDrone (no reconnect — same
-                # MAVLink session) and pipe move_safe's stdout into
-                # the GUI log via redirect_stdout. The old
-                # self._move_safe is left in place as dead code.
-                from drone_interface import SimDrone
-                from contextlib import redirect_stdout
-
-                class _StdoutToLog:
-                    def __init__(self, log_func):
-                        self._log = log_func
-                        self._buf = ''
-                    def write(self, s):
-                        self._buf += s
-                        while '\n' in self._buf:
-                            line, self._buf = self._buf.split('\n', 1)
-                            if line.strip():
-                                self._log(line)
-                        return len(s)
-                    def flush(self):
-                        if self._buf.strip():
-                            self._log(self._buf)
-                            self._buf = ''
-
-                _drone = SimDrone.from_controller(dc)
-                _sink = _StdoutToLog(self.log)
-                with redirect_stdout(_sink):
-                    _ok = _drone.move_safe(x, y, speed, threshold, sidestep)
-                _sink.flush()
-                if not _ok:
+                if not self._move_safe(dc, x, y, speed, threshold, sidestep):
                     self.log("[ERROR] Safe move failed")
                     self._emergency_land()
                     return False

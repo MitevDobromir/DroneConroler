@@ -161,14 +161,13 @@ class DroneInterface(ABC):
         print(f"[MOVE_SAFE] Target: N={x:.1f} E={y:.1f} ({total_distance:.1f}m)")
         print(f"[MOVE_SAFE] Obstacle threshold: {obstacle_threshold}m")
 
-        # Original direction — captured ONCE at the start and used
-        # only for the overshoot check at the bottom of the dodge
-        # branch. The dodge math itself uses dir_x/dir_y/perp_x/perp_y
-        # that are recomputed each iteration from the CURRENT remaining
-        # vector (see top of the while loop below) — that way a drift
-        # off the original line still gets a correctly aligned dodge.
-        orig_dir_x = x / total_distance
-        orig_dir_y = y / total_distance
+        # Normalize direction vector
+        dir_x = x / total_distance
+        dir_y = y / total_distance
+
+        # Perpendicular vector for sidestepping (rotate 90° clockwise)
+        perp_x = dir_y
+        perp_y = -dir_x
 
         remaining_x = x
         remaining_y = y
@@ -176,18 +175,6 @@ class DroneInterface(ABC):
         avoidance_count = 0
 
         while math.sqrt(remaining_x**2 + remaining_y**2) > 1.0:
-            # Recompute direction-to-target and its perpendicular from
-            # the CURRENT remaining vector. If the drone has drifted
-            # off the original line (PID error across several
-            # sidesteps, etc.), this keeps the dodge's forward and
-            # sidestep vectors aligned with where we actually still
-            # need to go.
-            cur_dist = math.sqrt(remaining_x**2 + remaining_y**2)
-            dir_x = remaining_x / cur_dist
-            dir_y = remaining_y / cur_dist
-            perp_x = dir_y
-            perp_y = -dir_x
-
             # Yaw to face the current direction of remaining travel
             # so the front sonar is aligned with motion. Without
             # this, diagonal motion misses obstacles that sit
@@ -247,19 +234,15 @@ class DroneInterface(ABC):
                 print(f"[AVOID] Avoidance complete — remaining: "
                       f"N={remaining_x:.1f} E={remaining_y:.1f}")
 
-                # Overshoot detection uses orig_dir (the ORIGINAL
-                # travel direction captured at the start). dir_x/dir_y
-                # here is the per-iteration value — it always points
-                # toward target by construction and would never go
-                # negative. If the remaining vector projects negatively
-                # onto orig_dir, the dodge carried us past the target —
-                # target is likely inside or behind the obstacle we
-                # just dodged. Turning around means hitting the same
-                # obstacle again; exit here at the closest reachable
-                # point.
+                # Overshoot detection. dir_x/dir_y are fixed at the
+                # original travel direction. If the new remaining
+                # vector projects negatively onto it, the dodge
+                # carried us past the target — target is likely
+                # inside or behind the obstacle we just dodged.
+                # Turning around means hitting the same obstacle
+                # again; exit here at the closest reachable point.
                 remaining_dot_dir = (
-                    remaining_x * orig_dir_x
-                    + remaining_y * orig_dir_y)
+                    remaining_x * dir_x + remaining_y * dir_y)
                 if remaining_dot_dir < 0:
                     overshoot = math.sqrt(
                         remaining_x**2 + remaining_y**2)
@@ -315,39 +298,6 @@ class SimDrone(DroneInterface):
         self._sonar_prefix = f'/drone/sonar'
         if instance > 0:
             self._sonar_prefix = f'/drone{instance}/sonar'
-
-    @classmethod
-    def from_controller(cls, controller, instance: int = 0,
-                        drone_name: str = 'drone1',
-                        fw: str = 'ardupilot') -> 'SimDrone':
-        """Wrap an already-constructed DroneController in a SimDrone.
-
-        Use this when another part of the system (e.g. the GUI
-        Simulation tab) already owns the MAVLink session but wants
-        to call the obstacle-aware methods defined at the
-        DroneInterface level (move_safe, get_sonar). No second
-        MAVLink connection is opened — the wrapper shares the
-        existing controller.
-
-        Args:
-            controller: An already-connected DroneController.
-            instance: SITL instance number (only used for the
-                sonar topic prefix).
-            drone_name: Name used when spawning in Gazebo (for
-                future multi-drone use).
-            fw: Firmware type (cosmetic, since controller is
-                already constructed).
-        """
-        wrapper = cls.__new__(cls)
-        wrapper._controller = controller
-        wrapper._instance = instance
-        wrapper._drone_name = drone_name
-        wrapper._firmware = fw
-        wrapper._port = 14550 + (instance * 10)
-        wrapper._sonar_prefix = '/drone/sonar'
-        if instance > 0:
-            wrapper._sonar_prefix = f'/drone{instance}/sonar'
-        return wrapper
 
     def connect(self) -> bool:
         try:

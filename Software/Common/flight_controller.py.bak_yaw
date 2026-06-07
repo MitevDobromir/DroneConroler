@@ -437,56 +437,6 @@ class DroneController:
         print(f"[ERROR] Move timeout after {timeout:.0f}s")
         return False
 
-    def set_yaw(self, yaw_deg, timeout=10, tolerance_deg=5):
-        """Rotate to specified heading (blocking).
-
-        Sends SET_POSITION_TARGET_LOCAL_NED at the current position
-        with the yaw-ignore bit cleared, so the autopilot rotates
-        without translating. Polls ATTITUDE for completion.
-
-        Args:
-            yaw_deg: Target heading in degrees (0 = North, +CW)
-            timeout: Max seconds to wait for the rotation
-            tolerance_deg: Done when within this many degrees of target
-
-        Returns:
-            True if within tolerance, False on timeout.
-        """
-        current = self._get_local_position()
-        if not current:
-            print("[YAW] Could not get current position")
-            return False
-
-        yaw_rad = math.radians(yaw_deg)
-        print(f"[YAW] Rotating to {yaw_deg:.0f} deg")
-
-        # type_mask: position (bits 0-2) enabled, velocity (3-5)
-        # ignored, accel (6-8) ignored, force (9) ignored,
-        # yaw (10) ENABLED, yaw_rate (11) ignored.
-        type_mask = 0b0000101111111000
-
-        start_time = time.time()
-        while time.time() - start_time < timeout:
-            self.master.mav.send(
-                mavutil.mavlink.MAVLink_set_position_target_local_ned_message(
-                    10, self.master.target_system, self.master.target_component,
-                    mavutil.mavlink.MAV_FRAME_LOCAL_NED, type_mask,
-                    current['x'], current['y'], current['z'],
-                    0, 0, 0, 0, 0, 0, yaw_rad, 0
-                )
-            )
-
-            msg = self.master.recv_match(type='ATTITUDE', blocking=True, timeout=0.5)
-            if msg:
-                current_yaw_rad = msg.yaw
-                diff = (yaw_rad - current_yaw_rad + math.pi) % (2 * math.pi) - math.pi
-                if abs(diff) < math.radians(tolerance_deg):
-                    print(f"[YAW] Reached {math.degrees(current_yaw_rad):.0f} deg")
-                    return True
-
-        print(f"[YAW] Timeout after {timeout}s")
-        return False
-
     def land(self):
         """Land the drone"""
         print("[LAND] Landing...")
