@@ -101,20 +101,7 @@ class DroneControlCenter:
         
         # Listen for state changes to update header
         self.state.add_listener(self.on_state_changed)
-
-        # When the user switches to the Simulations tab, (re)start the
-        # embedded camera feed now that its window is realized — covers a
-        # mission that began while another top-level tab was visible.
-        self.notebook.bind('<<NotebookTabChanged>>', self.on_main_tab_changed)
         
-    def on_main_tab_changed(self, _event=None):
-        """Notify the Simulations tab when it becomes visible."""
-        try:
-            if self.notebook.select() == str(self.simulation_tab):
-                self.simulation_tab.on_tab_shown()
-        except Exception:
-            pass
-
     def on_state_changed(self, event: str):
         """Update global status display based on state changes"""
         if event in ['world_changed', 'gazebo_state_changed']:

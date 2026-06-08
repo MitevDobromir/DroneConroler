@@ -1227,13 +1227,6 @@ class SimulationTab(ttk.Frame):
             return
         if not on_camera:
             return
-        # Only auto-start when there's actually a drone to stream from.
-        # Revealing the Camera pane with nothing spawned would open a
-        # stream against a dead UDP port that never receives frames.
-        # The pane's own Start Stream button still works for manual use.
-        if not (self.state.is_gazebo_running and self.state.spawned_drones):
-            self.log("[CAMERA] Skipping auto-start \u2014 no drone spawned yet.")
-            return
         # Defer briefly so the page is fully mapped/realized before the
         # sink grabs the window handle.
         self.after(200, self.camera_pane.start_stream)

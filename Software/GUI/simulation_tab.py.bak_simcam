@@ -39,15 +39,6 @@ import xml.etree.ElementTree as ET
 from .global_state import GlobalState
 from .theme import get_terminal_colors, COLORS
 
-# Embedded live camera feed. Reuses the standalone CameraTab widget
-# as-is. Guarded so any import problem in camera_tab can't take down
-# the Simulation tab — the feed simply won't be offered.
-try:
-    from .camera_tab import CameraTab
-    CAMERA_TAB_AVAILABLE = True
-except Exception:
-    CAMERA_TAB_AVAILABLE = False
-
 # Try to import flight controller for automated missions
 try:
     import sys as _sys
@@ -234,30 +225,15 @@ class SimulationTab(ttk.Frame):
             maximum=100, mode='determinate')
         self.progress_bar.grid(row=1, column=0, columnspan=3, sticky="ew", pady=(5, 0))
 
-        # Bottom area: a sub-notebook with the run Log and (when the
-        # GStreamer bindings are present) a live Camera feed, so the
-        # operator can watch the drone's H.264 stream during a run
-        # without leaving this tab. The Camera pane is the standalone
-        # CameraTab, reused unchanged. Its stream is started only once
-        # the pane is actually shown (see _on_bottom_tab_changed) —
-        # xvimagesink needs a realized X11 window, which is why the
-        # earlier always-start-on-launch attempt was reverted.
-        bottom_outer = ttk.Frame(right_frame)
-        bottom_outer.grid(row=2, column=0, sticky="nsew", pady=(10, 0))
-        bottom_outer.columnconfigure(0, weight=1)
-        bottom_outer.rowconfigure(0, weight=1)
-
-        self.bottom_notebook = ttk.Notebook(bottom_outer)
-        self.bottom_notebook.grid(row=0, column=0, sticky="nsew")
-
-        # ── Log sub-tab ──
-        log_tab = ttk.Frame(self.bottom_notebook, padding="10")
-        log_tab.columnconfigure(0, weight=1)
-        log_tab.rowconfigure(0, weight=1)
+        # Terminal output
+        term_frame = ttk.LabelFrame(right_frame, text="Simulation Log", padding="10")
+        term_frame.grid(row=2, column=0, sticky="nsew", pady=(10, 0))
+        term_frame.columnconfigure(0, weight=1)
+        term_frame.rowconfigure(0, weight=1)
 
         tc = get_terminal_colors()
         self.terminal_text = scrolledtext.ScrolledText(
-            log_tab, height=14, font=('Consolas', 9),
+            term_frame, height=14, font=('Consolas', 9),
             state='disabled',
             bg=tc['bg'], fg=tc['fg'],
             selectbackground=tc['select_bg'],
@@ -266,20 +242,8 @@ class SimulationTab(ttk.Frame):
             relief='flat', borderwidth=0)
         self.terminal_text.grid(row=0, column=0, sticky="nsew")
 
-        ttk.Button(log_tab, text="Clear Log",
+        ttk.Button(term_frame, text="Clear Log",
                    command=self.clear_log).grid(row=1, column=0, sticky="e", pady=(5, 0))
-
-        self.bottom_notebook.add(log_tab, text="  Log  ")
-
-        # ── Camera sub-tab (optional) ──
-        self.camera_pane = None
-        if CAMERA_TAB_AVAILABLE:
-            self.camera_pane = CameraTab(self.bottom_notebook, self.state)
-            self.bottom_notebook.add(self.camera_pane, text="  Camera  ")
-            # Start the feed only when the Camera pane is visible (its
-            # X11 window realized). This binding is the core fix.
-            self.bottom_notebook.bind(
-                '<<NotebookTabChanged>>', self._on_bottom_tab_changed)
 
     # ======================================================= Scan directory
     def scan_simulations(self):
@@ -485,11 +449,6 @@ class SimulationTab(ttk.Frame):
 
             # ── Phase 5: Execute Flight Plan ──
             self._set_phase(self.PHASE_MISSION)
-
-            # Reveal the live camera feed now that Gazebo is rendering
-            # and the drone is armed. Switching to the pane realizes its
-            # window and (via the tab-changed binding) starts the stream.
-            self.after(0, self._show_camera_feed)
 
             if not self._execute_flight_plan(flight_plan, 4, total_steps):
                 return
@@ -1139,10 +1098,6 @@ class SimulationTab(ttk.Frame):
 
     def _stop_all_processes(self):
         """Stop all managed processes"""
-        # Stop the embedded camera feed first so it isn't streaming
-        # against a Gazebo server that's about to go away.
-        if getattr(self, 'camera_pane', None) is not None:
-            self.after(0, self.camera_pane.stop_stream)
         # Stop MAVProxy
         if self.mavproxy_process:
             try:
@@ -1208,50 +1163,6 @@ class SimulationTab(ttk.Frame):
         self.terminal_text.config(state='normal')
         self.terminal_text.delete(1.0, tk.END)
         self.terminal_text.config(state='disabled')
-
-    # ====================================================== Camera feed
-    def _on_bottom_tab_changed(self, _event=None):
-        """Start the camera feed the moment its pane becomes visible.
-
-        xvimagesink needs a realized, mapped X11 window before the
-        pipeline can reach PLAYING. Selecting the Camera sub-tab maps
-        the pane, so we (re)start the stream here. CameraTab.start_stream
-        is a no-op when already running, so flipping back and forth is
-        safe.
-        """
-        if self.camera_pane is None:
-            return
-        try:
-            on_camera = (self.bottom_notebook.select() == str(self.camera_pane))
-        except Exception:
-            return
-        if not on_camera:
-            return
-        # Only auto-start when there's actually a drone to stream from.
-        # Revealing the Camera pane with nothing spawned would open a
-        # stream against a dead UDP port that never receives frames.
-        # The pane's own Start Stream button still works for manual use.
-        if not (self.state.is_gazebo_running and self.state.spawned_drones):
-            self.log("[CAMERA] Skipping auto-start \u2014 no drone spawned yet.")
-            return
-        # Defer briefly so the page is fully mapped/realized before the
-        # sink grabs the window handle.
-        self.after(200, self.camera_pane.start_stream)
-
-    def _show_camera_feed(self):
-        """Switch the bottom sub-notebook to the Camera pane.
-
-        Called from the orchestrator at mission start. Selecting the
-        pane fires <<NotebookTabChanged>>, which starts the stream once
-        the window is realized. Best-effort: if the drone has no camera
-        the feed just stays black, which is not an error.
-        """
-        if self.camera_pane is None:
-            return
-        try:
-            self.bottom_notebook.select(self.camera_pane)
-        except Exception:
-            pass
 
     # ====================================================== Add / Remove
     def open_add_dialog(self):

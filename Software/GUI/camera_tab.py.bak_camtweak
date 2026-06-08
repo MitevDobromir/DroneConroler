@@ -142,7 +142,7 @@ class CameraTab(ttk.Frame):
         video_outer.rowconfigure(0, weight=1)
 
         self.video_frame = tk.Frame(video_outer, bg='black',
-                                    width=640, height=360,
+                                    width=1280, height=720,
                                     highlightthickness=0, bd=0)
         self.video_frame.grid(row=0, column=0, sticky="nsew")
         self.video_frame.grid_propagate(False)
