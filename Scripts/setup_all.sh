@@ -24,7 +24,10 @@
 # (Do NOT run as root; it calls sudo only where needed.)
 # =============================================================================
 
-set -euo pipefail
+# NOTE: nounset (-u) is intentionally NOT enabled. ROS 2 / ament setup files
+# reference unset variables (e.g. AMENT_TRACE_SETUP_FILES) and would abort the
+# script the moment they are sourced. errexit + pipefail still catch real errors.
+set -eo pipefail
 
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; BLUE='\033[0;34m'; NC='\033[0m'
 print_status()  { echo -e "${GREEN}[INFO]${NC} $1"; }
@@ -225,14 +228,28 @@ if grep -q "gz-sim7" CMakeLists.txt 2>/dev/null; then
 fi
 rm -rf build && mkdir build && cd build
 # shellcheck disable=SC1091
+set +u  # ROS setup.bash references unset vars
 source "/opt/ros/${ROS_DISTRO}/setup.bash"
 cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
-make -j"$NPROC"
-if [ ! -f "libArduPilotPlugin.so" ]; then
-    print_error "ardupilot_gazebo plugin build failed (libArduPilotPlugin.so not produced)"
-    exit 1
+
+# Memory-aware parallelism. Each plugin translation unit pulls in heavy
+# Gazebo/SDFormat headers and can use ~1-2 GB per compile job, so `make -j<nproc>`
+# can OOM-kill the compiler on a small VM — which silently aborted this script
+# (and therefore Step 9) before. Cap jobs to ~(RAM_GB / 2) and fall back to -j1.
+PLUGIN_JOBS="$NPROC"
+MEM_GB="$(awk '/MemTotal/ {printf "%d", $2/1024/1024}' /proc/meminfo 2>/dev/null || echo 4)"
+if [ "$MEM_GB" -ge 1 ] && [ $((MEM_GB / 2)) -lt "$PLUGIN_JOBS" ]; then PLUGIN_JOBS=$((MEM_GB / 2)); fi
+[ "$PLUGIN_JOBS" -lt 1 ] && PLUGIN_JOBS=1
+print_status "Building ardupilot_gazebo plugin with -j${PLUGIN_JOBS} (${MEM_GB} GB RAM detected)"
+make -j"$PLUGIN_JOBS" || { print_warning "Parallel build failed (likely RAM); retrying single-threaded..."; make -j1 || true; }
+
+if [ -f "libArduPilotPlugin.so" ]; then
+    print_status "ardupilot_gazebo plugin built"
+else
+    print_error "Plugin build did not produce libArduPilotPlugin.so."
+    print_warning "Continuing so Step 9 still writes the environment. Rebuild the plugin afterward with:"
+    print_warning "  cd $ARDUPILOT_DIR/ardupilot_gazebo/build && source /opt/ros/${ROS_DISTRO}/setup.bash && cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo && make -j1"
 fi
-print_status "ardupilot_gazebo plugin built"
 
 # -----------------------------------------------------------------------------
 print_step "STEP 9 / 9 : Workspace layout + environment script"
