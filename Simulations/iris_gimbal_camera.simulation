@@ -4,7 +4,8 @@
 
     "environment": {
         "world_file": "plains_env.sdf",
-        "world_name": "plains_world"
+        "world_name": "plains_world",
+        "gui": true
     },
 
     "drone": {
